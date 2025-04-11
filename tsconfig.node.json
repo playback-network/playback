@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "electron.vite.config.ts", 
+    "src/electron.d.ts", 
+    "src/images.d.ts", 
+    "src/main", 
+    "src/preload", 
+    "src/renderer", 
+    "src/db", 
+    "src/db/__tests__", 
+    "src/renderer/", 
+    "src/renderer/assets/", 
+    "src/scripts/signup.tsx", 
+    "src/services/",
+    "src/services/ocr_worker"
+  ]
+} 

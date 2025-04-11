@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",           // keep as ESNext
+    "moduleResolution": "Node",
+    "outDir": "dist/workers",
+    "rootDir": "src/",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "resolveJsonModule": true,
+    "noEmit": false,
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["src/services/workers/**/*.ts"]
+}
