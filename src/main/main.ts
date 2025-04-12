@@ -125,11 +125,11 @@ ipcMain.handle('db:getRedactedCount', async () => {
 });
 
 // Initialize the database when the app starts
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   startBackgroundProcesses();
-  initializeDatabase();
-  const sessionId = initializeSession();
-  setActiveSessionId(sessionId);
+  await initializeDatabase();
+  const sessionId = await initializeSession();
+  await setActiveSessionId(sessionId);
   createWindow();
   createTray();
 });

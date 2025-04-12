@@ -66,7 +66,7 @@ function pollAndRedactScreenshots() {
     try {
       const unredacted = await getPendingScreenshots(); // should return [{ id, image }]
       for (const shot of unredacted) {
-        setScreenshotQueuedForOCR(shot.id);
+        await setScreenshotQueuedForOCR(shot.id);
         queueForOCR(shot.id, shot.image);
       }
       

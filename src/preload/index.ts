@@ -64,12 +64,4 @@ contextBridge.exposeInMainWorld('electron', {
     }
   },
   
-  // App stats and points
-  stats: {
-    onPointsUpdate: (callback: (points: number) => void) => {
-      const listener = (_: any, points: number) => callback(points);
-      ipcRenderer.on('stats:pointsUpdate', listener);
-      return () => ipcRenderer.removeListener('stats:pointsUpdate', listener);
-    }
-  }
 });

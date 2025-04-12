@@ -59,7 +59,7 @@ export async function query(sql: string, params: QueryParams = []) {
 
   const stmt = db.prepare(sql);
   const isSelect = sql.trim().toLowerCase().startsWith("select");
-
+  
   if (isSelect) {
     return stmt.all(...params);
   } else {

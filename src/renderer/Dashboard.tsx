@@ -6,6 +6,7 @@ const Dashboard: React.FC = () => {
   const [points, setPoints] = useState<number>(0); // Points counter
 
   useEffect(() => {
+    let isMounted = true;
     // Fetch initial points count
     const fetchPoints = async () => {
       const result = await window.electron.db.getRedactedCount();
@@ -13,16 +14,16 @@ const Dashboard: React.FC = () => {
     };
     fetchPoints();
   
+    const interval = setInterval(() => {
+      fetchPoints();
+    }, 3000);
     // Set up listener for regular points updates
-    const unsubscribe = window.electron.stats.onPointsUpdate((newPoints: number) => {
-      setPoints(newPoints);
-    });
-  
-    // Clean up event listener on component unmount
     return () => {
-      unsubscribe();
+      isMounted = false;
+      clearInterval(interval);
     };
   }, []);
+
 
   const handleLogout = async () => {
     const confirmed = window.confirm('Are you sure you want to log out?');
