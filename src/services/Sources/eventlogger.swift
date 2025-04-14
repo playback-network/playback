@@ -24,7 +24,7 @@ var lastScrollTime = Date().timeIntervalSince1970
 let scrollDebounceInterval: TimeInterval = 0.4 
 
 let specialKeys: Set<Int64> = [
-    36, 53, 48, 49, 122, 123, 124, 125, 126 // return, esc, tab, space, arrows, etc.
+    36, 48, 49, 53, 122, 123, 124, 125, 126 // return, esc, tab, space, arrows, etc.
 ]
 
 func emit(_ eventData: [String: Any]) {

@@ -2,8 +2,8 @@ import screenshot from 'screenshot-desktop';
 import { insertScreenshot, recordEvent } from '../db/db_utils';
 import { BrowserWindow } from 'electron';
 
-const MAX_QUEUE_SIZE = 20;
-const captureIntervalMs = 100;
+const MAX_QUEUE_SIZE = 10;
+const captureIntervalMs = 100; // 100ms
 
 let screenshotQueue: { img: Buffer; timestamp: number }[] = [];
 let captureInterval: ReturnType<typeof setInterval> | null = null;
@@ -42,14 +42,19 @@ async function handleEventScreenshots(
 ) {
   const pair = getScreenshotPair();
   if (!pair) return;
-  const [before, after] = pair;
+  const beforeImg = Buffer.from(pair[0].img); // clone in case buffer is reused
+  const afterImg = Buffer.from(pair[1].img);
+  const beforeTs = new Date(pair[0].timestamp);
+  const afterTs = new Date(pair[1].timestamp);
 
-  const beforeId = await insertScreenshot(before.img, null, new Date(before.timestamp));
-  const afterId = await insertScreenshot(after.img, null, new Date(after.timestamp));
-
-  await recordEvent(eventType, eventDetails, beforeId, afterId, new Date(before.timestamp));
-
-  if (win?.webContents) win.webContents.send('screenshotSaved');
+  try {
+    const beforeId = await insertScreenshot(beforeImg, null, beforeTs);
+    const afterId = await insertScreenshot(afterImg, null, afterTs);
+    await recordEvent(eventType, eventDetails, beforeId, afterId, beforeTs);
+    if (win?.webContents) win.webContents.send('screenshotSaved');
+  } catch (err) {
+    console.error('⚠️ Failed to record screenshot event:', err);
+  }
 }
 
 let modifierKeys: Set<number> = new Set();

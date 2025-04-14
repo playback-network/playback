@@ -2,16 +2,18 @@ import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from 'electron';
 import path from 'node:path';
 import { initializeDatabase } from '../db/db';
 import { performOCRAndRedact } from '../services/ocr_service'; // Corrected import path
-import { startBackgroundProcesses, stopBackgroundProcesses, userEventEmitter } from '../services/process_manager';
+import { stopBackgroundProcesses, userEventEmitter } from '../services/process_manager';
 import { handleUserEvent } from '../services/capture_engine';
-import { getAuthStatus, getRedactedScreenshotCount, initializeSession } from '../db/db_utils';
+import { getRedactedScreenshotCount, initializeSession } from '../db/db_utils';
 import './auth';
 import { setActiveSessionId } from '../db/sessionStore';
+import { uploadRedactedScreenshotsAndEvents } from '../db/db_s3_utils';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuiting = false;
 // Add this function to clean up resources
+
 function cleanup() {
   stopBackgroundProcesses();
   if (tray) {
@@ -78,6 +80,19 @@ function createWindow() {
   });
 }
 
+function startUploadLoop(intervalMs = 5000) {
+  const loop = async () => {
+    try {
+      await uploadRedactedScreenshotsAndEvents();
+    } catch (err) {
+      console.error("📤 S3 upload failed:", err);
+    } finally {
+      setTimeout(loop, intervalMs);
+    }
+  };
+  loop();
+}
+
 function createTray() {
   const iconPath = path.join(__dirname, '../../assets/icon.svg');
   const icon = nativeImage.createFromPath(iconPath);
@@ -124,9 +139,9 @@ ipcMain.handle('db:getRedactedCount', async () => {
   return redactedCount;
 });
 
+
 // Initialize the database when the app starts
 app.whenReady().then(async () => {
-  startBackgroundProcesses();
   await initializeDatabase();
   const sessionId = await initializeSession();
   await setActiveSessionId(sessionId);

@@ -9,7 +9,7 @@
     auth: {
       signIn: (username: string, password: string) => Promise<{ message: string }>;
       signUp: (username: string, password: string, email: string) => Promise<{ message: string }>;
-      signOut: () => Promise<void>;
+      logOut: () => Promise<void>;
       confirmSignUp: (username: string, code: string) => Promise<string>;
       getStatus: () => Promise<any>;
     };

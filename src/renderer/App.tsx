@@ -5,6 +5,7 @@ import Dashboard from './Dashboard';
 
 const MainContent = () => {
   const { isLoggedIn } = useAuth();
+
   console.log("App render - isLoggedIn:", isLoggedIn); // Add this for debugging
 
   return <div>{isLoggedIn ? <Dashboard /> : <AuthForm />}</div>;

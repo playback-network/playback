@@ -27,8 +27,8 @@ contextBridge.exposeInMainWorld('electron', {
     signIn: (username: string, password: string) => 
       ipcRenderer.invoke('auth:signIn', { username, password }),
     
-    signOut: () => 
-      ipcRenderer.invoke('auth:signOut'),
+    logOut: () => 
+      ipcRenderer.invoke('auth:logout'),
     
     confirmSignUp: (username: string, code: string) => 
       ipcRenderer.invoke('auth:confirmSignUp', { username, code }),

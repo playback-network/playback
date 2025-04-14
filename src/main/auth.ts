@@ -3,7 +3,9 @@ import AWS from 'aws-sdk';
 import { CognitoUserPool, AuthenticationDetails, CognitoUser, CognitoUserAttribute } from 'amazon-cognito-identity-js';
 import dotenv from 'dotenv';
 import { query } from '../db/db';
-// import { startUserProcesses } from './process_manager';
+import { startUploadLoop, stopUploadLoop } from '../services/process_manager';
+import { startBackgroundProcesses } from '../services/process_manager';
+import { stopContinuousCapture } from '../services/capture_engine';
 
 dotenv.config();
 let userPoolData = {
@@ -20,6 +22,8 @@ ipcMain.handle('auth:signUp', async (_event, { username, password, email }) => {
     userPool.signUp(username, password, attributes, null, (err, result) => {
       if (err) return reject(err.message);
       resolve({ message: 'User registered successfully', username: result?.user.getUsername() });
+      startBackgroundProcesses();
+      startUploadLoop();
     });
   });
 });
@@ -69,6 +73,8 @@ ipcMain.handle('auth:signIn', async (_event, { username, password }) => {
         isUserAuthenticated = true;
 
         resolve({ message: 'Signed in', cognito_identity_id: identityId });
+        startBackgroundProcesses();
+        startUploadLoop();
       },
       onFailure: (err) => reject(err.message),
     });
@@ -108,12 +114,16 @@ ipcMain.handle('auth:getStatus', async () => {
   }
 });
 
-ipcMain.handle('auth:signOut', async () => {
+ipcMain.handle('auth:logout', async () => {
   try {
+    await stopContinuousCapture();
+    await stopUploadLoop();
     query('DELETE FROM users');
     isUserAuthenticated = false;
-    return { message: 'Logged out' };
-  } catch (e) {
-    throw new Error('Failed to log out');
+    return { status: 'ok' };
+  } catch (error) {
+    console.error('Error during logout:', error);
+    return { status: 'error', message: error.message };
   }
 });
+

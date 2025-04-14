@@ -4,6 +4,7 @@ import { startContinuousCapture, stopContinuousCapture } from './capture_engine'
 import { EventEmitter } from 'events';
 import { getPendingScreenshots, setScreenshotQueuedForOCR } from '../db/db_redacted_utils';
 import { queueForOCR } from './ocr_queue';
+import { uploadRedactedScreenshotsAndEvents } from '../db/db_s3_utils';
 
 export const userEventEmitter = new EventEmitter();
 
@@ -11,6 +12,7 @@ let eventCapture: ReturnType<typeof spawn> | null = null;
 let ocrServer: ChildProcessWithoutNullStreams | null = null;
 let shuttingDown = false;
 let buffer = '';
+let uploadLoopActive = true;
 
 export function startBackgroundProcesses() {
   // ⚡ start Swift OCR server
@@ -59,6 +61,24 @@ export function stopBackgroundProcesses() {
     eventCapture = null;
     console.log('🛑 Event capture stopped');
   }
+}
+
+export function startUploadLoop(intervalMs = 5000) {
+  const loop = async () => {
+    if (!uploadLoopActive) return;
+    try {
+      await uploadRedactedScreenshotsAndEvents();
+    } catch (err) {
+      console.error("📤 S3 upload failed:", err);
+    } finally {
+      if (uploadLoopActive) setTimeout(loop, intervalMs);
+    }
+  };
+  loop();
+}
+
+export function stopUploadLoop() {
+  uploadLoopActive = false;
 }
 
 function pollAndRedactScreenshots() {

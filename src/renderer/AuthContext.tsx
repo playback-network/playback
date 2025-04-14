@@ -64,7 +64,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async () => {
     try {
-      await window.electron.auth.signOut();
+      await window.electron.auth.logOut();
       setIsLoggedIn(false);
     } catch (err) {
       console.error('Error during logout:', err);

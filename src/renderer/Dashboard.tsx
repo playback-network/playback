@@ -30,7 +30,7 @@ const Dashboard: React.FC = () => {
     if (!confirmed) return;
 
     try {
-      const response = await window.electron.auth.signOut();
+      const response = await window.electron.auth.logOut();
       console.log(response);
       
       // Redirect to sign-in screen or update UI to show logged-out state
