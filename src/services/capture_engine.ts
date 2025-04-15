@@ -3,10 +3,14 @@ import { insertScreenshot, recordEvent } from '../db/db_utils';
 import { BrowserWindow } from 'electron';
 
 const MAX_QUEUE_SIZE = 10;
-const captureIntervalMs = 100; // 100ms
+const captureIntervalMs = 500; // 100ms
 
 let screenshotQueue: { img: Buffer; timestamp: number }[] = [];
 let captureInterval: ReturnType<typeof setInterval> | null = null;
+let modifierKeys: Set<number> = new Set();
+let scrollSessionActive = false;
+let scrollStartBuffer: { img: Buffer; timestamp: number } | null = null;
+
 
 export function startContinuousCapture() {
   if (captureInterval) return;
@@ -38,52 +42,79 @@ function getScreenshotPair(): [before: typeof screenshotQueue[0], after: typeof 
 async function handleEventScreenshots(
   eventType: string,
   eventDetails: any,
-  win?: BrowserWindow
+  win?: BrowserWindow,
+  useSingleFrame: boolean = false
 ) {
   const pair = getScreenshotPair();
   if (!pair) return;
-  const beforeImg = Buffer.from(pair[0].img); // clone in case buffer is reused
-  const afterImg = Buffer.from(pair[1].img);
-  const beforeTs = new Date(pair[0].timestamp);
-  const afterTs = new Date(pair[1].timestamp);
 
   try {
-    const beforeId = await insertScreenshot(beforeImg, null, beforeTs);
-    const afterId = await insertScreenshot(afterImg, null, afterTs);
-    await recordEvent(eventType, eventDetails, beforeId, afterId, beforeTs);
+    if (useSingleFrame) {
+      const frame = pair[1]; // use the latest screenshot
+      const img = Buffer.from(frame.img);
+      const ts = new Date(frame.timestamp);
+      const screenshotId = await insertScreenshot(img, null, ts);
+
+      await recordEvent(eventType, eventDetails, screenshotId, screenshotId, ts);
+    } else {
+      const beforeImg = Buffer.from(pair[0].img);
+      const afterImg = Buffer.from(pair[1].img);
+      const beforeTs = new Date(pair[0].timestamp);
+      const afterTs = new Date(pair[1].timestamp);
+
+      const beforeId = await insertScreenshot(beforeImg, null, beforeTs);
+      const afterId = await insertScreenshot(afterImg, null, afterTs);
+
+      await recordEvent(eventType, eventDetails, beforeId, afterId, beforeTs);
+    }
+
     if (win?.webContents) win.webContents.send('screenshotSaved');
   } catch (err) {
     console.error('⚠️ Failed to record screenshot event:', err);
   }
 }
 
-let modifierKeys: Set<number> = new Set();
-let scrollSessionActive = false;
-let scrollStartTime = 0;
-let duringScrollShotTaken = false;
+
 export function handleUserEvent(event: any, win?: BrowserWindow) {
   const { eventType, keyCode, flags, timestamp, ...eventDetails } = event;
 
   if (eventType === 'scrollStart') {
-    scrollSessionActive = true;
-    scrollStartTime = timestamp;
-    duringScrollShotTaken = false;
-
-    handleEventScreenshots('scrollStart', eventDetails, win); // capture BEFORE scroll
+    if (!scrollSessionActive) {
+      scrollSessionActive = true;
+      const pair = getScreenshotPair();
+      if (!pair) return;
+      scrollStartBuffer = {
+        img: Buffer.from(pair[1].img),
+        timestamp: pair[1].timestamp
+      };
+    }
     return;
   }
-
+  
   if (eventType === 'scrollEnd') {
-    if (scrollSessionActive && !duringScrollShotTaken) {
-      const duration = timestamp - scrollStartTime;
-      if (duration > 2000) {
-        handleEventScreenshots('scrollMid', eventDetails, win); // optional mid-capture
-        duringScrollShotTaken = true;
-      }
+    if (scrollSessionActive && scrollStartBuffer) {
+      scrollSessionActive = false;
+  
+      const pair = getScreenshotPair();
+      if (!pair) return;
+  
+      const afterImg = Buffer.from(pair[1].img);
+      const afterTs = new Date(pair[1].timestamp);
+      const beforeImg = scrollStartBuffer.img;
+      const beforeTs = new Date(scrollStartBuffer.timestamp);
+  
+      scrollStartBuffer = null;
+  
+      insertScreenshot(beforeImg, null, beforeTs).then(beforeId =>
+        insertScreenshot(afterImg, null, afterTs).then(afterId =>
+          recordEvent('scroll', eventDetails, beforeId, afterId, beforeTs)
+        )
+      ).catch(err => {
+        console.error('⚠️ Failed to record scroll event:', err);
+      });
+  
+      if (win?.webContents) win.webContents.send('screenshotSaved');
     }
-
-    scrollSessionActive = false;
-    handleEventScreenshots('scrollEnd', eventDetails, win); // capture AFTER scroll
     return;
   }
 
@@ -100,9 +131,9 @@ export function handleUserEvent(event: any, win?: BrowserWindow) {
   if (eventType === 'specialKey') {
     if (modifierKeys.size > 0) {
       eventDetails.modifierKeys = Array.from(modifierKeys);
-      handleEventScreenshots('specialCombo', { keyCode, ...eventDetails }, win);
+      handleEventScreenshots('specialCombo', { keyCode, ...eventDetails }, win, false);
     } else {
-      handleEventScreenshots('specialKey', { keyCode, ...eventDetails }, win);
+      handleEventScreenshots('specialKey', { keyCode, ...eventDetails }, win, false);
     }
     return;
   }
@@ -111,7 +142,7 @@ export function handleUserEvent(event: any, win?: BrowserWindow) {
     case 'leftClick':
     case 'rightClick':
     case 'scroll':
-      handleEventScreenshots(eventType, eventDetails, win);
+      handleEventScreenshots(eventType, eventDetails, win, false);
       break;
     default:
       console.log('⚠️ Unhandled user event type:', eventType);

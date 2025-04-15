@@ -1,13 +1,11 @@
 import { ipcMain } from 'electron';
 import AWS from 'aws-sdk';
 import { CognitoUserPool, AuthenticationDetails, CognitoUser, CognitoUserAttribute } from 'amazon-cognito-identity-js';
-import dotenv from 'dotenv';
 import { query } from '../db/db';
 import { startUploadLoop, stopUploadLoop } from '../services/process_manager';
 import { startBackgroundProcesses } from '../services/process_manager';
 import { stopContinuousCapture } from '../services/capture_engine';
 
-dotenv.config();
 let userPoolData = {
     UserPoolId: process.env.USER_POOL_ID,
     ClientId: process.env.CLIENT_ID
@@ -71,10 +69,9 @@ ipcMain.handle('auth:signIn', async (_event, { username, password }) => {
         `, [username, username, identityId, idToken, refreshToken, accessToken]);
 
         isUserAuthenticated = true;
-
-        resolve({ message: 'Signed in', cognito_identity_id: identityId });
         startBackgroundProcesses();
         startUploadLoop();
+        resolve({ message: 'Signed in', cognito_identity_id: identityId });
       },
       onFailure: (err) => reject(err.message),
     });
@@ -108,6 +105,8 @@ ipcMain.handle('auth:getStatus', async () => {
     `, [username, email, identityId]);
 
     isUserAuthenticated = true;
+    startBackgroundProcesses();
+    startUploadLoop();
     return { isLoggedIn: true, username };
   } catch (err) {
     return { isLoggedIn: false, error: err.message };

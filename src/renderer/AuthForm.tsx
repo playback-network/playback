@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from './AuthContext';  // Import your auth methods
 import logo from './assets/logo.jpg';  // Add your logo if available
+import Loading from './Loading';
 
-interface AuthFormProps {
-  onSubmit?: (credentials: { username: string; password: string }) => void;
-}
 
-const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
+const AuthForm: React.FC = () => {
   const [password, setPassword] = useState('ThisIsMyTest1234!');
   const [email, setEmail] = useState('weberfabian1@gmx.de');
   const [confirmationCode, setConfirmationCode] = useState('');
@@ -14,6 +12,8 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
   const [username, setUsername] = useState<string>('weberfabian1@gmx.de');
   const [needsConfirmation, setNeedsConfirmation] = useState(false); // Flag for email verification
   const [message, setMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const { login } = useAuth();
 
   // Handle sign-up
@@ -40,18 +40,15 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
       });
   };
 
-  const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSignIn = async () => {
+    setIsSubmitting(true);
     try {
-      const result = await window.electron.auth.signIn(email, password);
-      console.log("Sign in result:", result); // Add this for debugging
-      if (result?.message === 'Signed in') {
-        await login();
-        setMessage('Login successful');
-      }
+      const { success, message } = await login(username, password);
+      setMessage(success ? 'Login successful' : message);
     } catch (err) {
-      console.error('Sign in error:', err);
       setMessage('Login failed');
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
@@ -62,10 +59,12 @@ const AuthForm: React.FC<AuthFormProps> = ({ onSubmit }) => {
     } else if (isSignUp) {
       handleSignUp();
     } else {
-      handleSignIn(e);
+      handleSignIn();
     }
   };
 
+  if (isSubmitting) return <Loading />;
+  
   return (
     <div className="splash-container">
       <div className="bg-gray-50 shadow-md rounded-lg px-10 py-8 w-full max-w-md">

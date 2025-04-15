@@ -5,6 +5,7 @@ import { EventEmitter } from 'events';
 import { getPendingScreenshots, setScreenshotQueuedForOCR } from '../db/db_redacted_utils';
 import { queueForOCR } from './ocr_queue';
 import { uploadRedactedScreenshotsAndEvents } from '../db/db_s3_utils';
+import { app } from 'electron';
 
 export const userEventEmitter = new EventEmitter();
 
@@ -16,7 +17,11 @@ let uploadLoopActive = true;
 
 export function startBackgroundProcesses() {
   // ⚡ start Swift OCR server
-  const binDir = path.resolve(__dirname, '../bin'); // `dist/bin`
+  const isProd = app.isPackaged;
+  const binDir = isProd
+  ? path.join(process.resourcesPath, 'bin')
+  : path.join(__dirname, '../bin');
+
   const ocrBin = path.join(binDir, 'OCRServer');
   const eventBin = path.join(binDir, 'Eventlogger');
 

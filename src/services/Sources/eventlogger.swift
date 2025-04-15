@@ -21,7 +21,7 @@ let modifierMap: [ModifierKey: String] = [
 var activeModifiers: Set<String> = []
 var isScrolling = false
 var lastScrollTime = Date().timeIntervalSince1970
-let scrollDebounceInterval: TimeInterval = 0.4 
+let scrollDebounceInterval: TimeInterval = 1 
 
 let specialKeys: Set<Int64> = [
     36, 48, 49, 53, 122, 123, 124, 125, 126 // return, esc, tab, space, arrows, etc.

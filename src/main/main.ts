@@ -5,14 +5,23 @@ import { performOCRAndRedact } from '../services/ocr_service'; // Corrected impo
 import { stopBackgroundProcesses, userEventEmitter } from '../services/process_manager';
 import { handleUserEvent } from '../services/capture_engine';
 import { getRedactedScreenshotCount, initializeSession } from '../db/db_utils';
-import './auth';
 import { setActiveSessionId } from '../db/sessionStore';
 import { uploadRedactedScreenshotsAndEvents } from '../db/db_s3_utils';
+import './auth';
+import dotenv from 'dotenv';
+import { performanceLoop } from './performance';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuiting = false;
-// Add this function to clean up resources
+
+const isProd = process.env.NODE_ENV === 'production';
+const envPath = isProd
+  ? path.join(process.resourcesPath, '.env.production') // in packaged app
+  : path.resolve(__dirname, '../../.env');              // in dev
+
+dotenv.config({ path: envPath });
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096 --trace-gc');
 
 function cleanup() {
   stopBackgroundProcesses();
@@ -80,19 +89,6 @@ function createWindow() {
   });
 }
 
-function startUploadLoop(intervalMs = 5000) {
-  const loop = async () => {
-    try {
-      await uploadRedactedScreenshotsAndEvents();
-    } catch (err) {
-      console.error("📤 S3 upload failed:", err);
-    } finally {
-      setTimeout(loop, intervalMs);
-    }
-  };
-  loop();
-}
-
 function createTray() {
   const iconPath = path.join(__dirname, '../../assets/icon.svg');
   const icon = nativeImage.createFromPath(iconPath);
@@ -147,6 +143,7 @@ app.whenReady().then(async () => {
   await setActiveSessionId(sessionId);
   createWindow();
   createTray();
+  performanceLoop();
 });
 
 app.on('activate', () => {

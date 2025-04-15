@@ -199,7 +199,7 @@ func drawRedactionBoxes(on imageData: Data, words: [(String, CGRect)], entities:
                     ctx.fill(rect) // 🔹 Fill the redaction box
                     ctx.stroke(rect) // 🔹 Draw an outline
 
-                    print("📌 Redaction #\(redactionCount): x=\(x), y=\(y), width=\(width), height=\(height)")
+                    // print("📌 Redaction #\(redactionCount): x=\(x), y=\(y), width=\(width), height=\(height)")
                     redactionCount += 1
                 }
             }

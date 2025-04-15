@@ -1,6 +1,9 @@
 import AWS from 'aws-sdk';
 import { query } from './db';
 import { getIdToken, getCognitoIdentityFromDB, setAWSCredentials } from '../services/auth';
+import fs from 'fs';
+import path from 'path';
+import { app } from 'electron';
 
 const BUCKET_NAME = process.env.BUCKET_NAME;
 
@@ -71,4 +74,39 @@ export async function uploadRedactedScreenshotsAndEvents() {
   } catch (err) {
     console.error('🚨 Upload error:', err);
   }
+}
+
+export async function uploadAppLogs() {
+    try {
+      const logsPath = path.join(app.getPath('userData'), 'logs');
+      if (!fs.existsSync(logsPath)) return;
+  
+      const files = fs.readdirSync(logsPath)
+        .filter(f => f.endsWith('.log') || f.endsWith('.heapsnapshot'));
+  
+      if (!files.length) return;
+  
+      const idToken = await getIdToken();
+      const cognitoIdentityId = await getCognitoIdentityFromDB();
+      await setAWSCredentials(idToken);
+  
+      const s3 = new AWS.S3();
+  
+      for (const file of files) {
+        const filePath = path.join(logsPath, file);
+        const body = fs.createReadStream(filePath);
+        const s3Key = `${cognitoIdentityId}/logs/${file}`;
+  
+        await s3.upload({
+          Bucket: BUCKET_NAME!,
+          Key: s3Key,
+          Body: body,
+          ACL: 'private',
+        }).promise();
+  
+        console.log(`📤 Uploaded log: ${s3Key}`);
+      }
+    } catch (err) {
+      console.error('🚨 Log upload failed:', err);
+    }
 }

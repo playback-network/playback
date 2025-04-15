@@ -38,3 +38,5 @@ node_modules
 
 release/*
 logs/*
+
+package-lock.json

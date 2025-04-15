@@ -9,7 +9,7 @@ import Loading from './Loading';
 
 interface AuthContextType {
   isLoggedIn: boolean;
-  login: () => void;
+  login: (username: string, password: string) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
 }
 
@@ -34,7 +34,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         const result = await window.electron.auth.getStatus();
         console.log("Auth status check:", result);
-        setIsLoggedIn(!!result?.isLoggedIn);
+        if (!result || typeof result.isLoggedIn !== 'boolean') {
+          console.warn("⚠️ Invalid auth status payload:", result);
+          setIsLoggedIn(false);
+        } else {
+          setIsLoggedIn(result.isLoggedIn);
+        }
       } catch (err) {
         console.error('Error checking auth status:', err);
         setIsLoggedIn(false);
@@ -42,24 +47,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setLoading(false);
       }
     };
-
     checkAuthStatus();
   }, []);
 
-  const login = async () => {
-    setIsLoggedIn(true);
-    // try {
-    //   const result = await window.electron.auth.getStatus();
-    //   console.log("Login attempt:", result);
-    //   if (result?.isLoggedIn) {
-    //     setIsLoggedIn(true);
-    //   } else {
-    //     setIsLoggedIn(false);
-    //   }
-    // } catch (err) {
-    //   console.error('Error during login:', err);
-    //   setIsLoggedIn(false);
-    // }
+  const login = async (username: string, password: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      const result = await window.electron.auth.signIn(username, password);
+      console.log("Login attempt:", result);
+      const success = result?.message === 'Signed in';
+      setIsLoggedIn(success);
+      return { success, message: result?.message || 'Unknown result' };
+    } catch (err: any) {
+      console.error('Error during login:', err);
+      setIsLoggedIn(false);
+      return { success: false, message: err?.message || 'Login failed' };
+    }
   };
 
   const logout = async () => {

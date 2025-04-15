@@ -10,7 +10,7 @@ export async function performOCRAndRedact(imageBuffer: Buffer): Promise<Buffer> 
   const form = new FormData();
   form.append('image', imageBuffer, { filename: 'screenshot.jpeg', contentType: 'image/jpeg' });
 
-  console.log("📡 Uploading image to Swift OCR server via multipart...");
+  // console.log("📡 Uploading image to Swift OCR server via multipart...");
 
   const response = await axios.post(SWIFT_SERVER_URL, form, {
     headers: form.getHeaders(),
@@ -21,7 +21,7 @@ export async function performOCRAndRedact(imageBuffer: Buffer): Promise<Buffer> 
     throw new Error(`❌ Invalid response from OCR server: ${JSON.stringify(response.data)}`);
   }
 
-  console.log("✅ Redacted image received from Swift OCR server");
+  //console.log("✅ Redacted image received from Swift OCR server");
   return Buffer.from(response.data.redactedImage, 'base64');
 }
 

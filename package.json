@@ -5,33 +5,20 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "preview": "electron-vite preview",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "test": "jest",
     "build:all": "npm run build && npm run postbuild",
-    "postinstall": "electron-builder install-app-deps",
-    "rebuild": "electron-rebuild -f -w better-sqlite3",
     "build:worker": "tsc --project tsconfig.worker.json",
     "build:ocr": "cd src/services && swift build -c release",
+    "postbuild": "npm run build:ocr && npm run build:worker && npm run copy:swift",
     "copy:swift": "mkdir -p dist/bin && cp src/services/.build/release/OCRServer dist/bin/ && cp src/services/.build/release/Eventlogger dist/bin/",
-    "postbuild": "npm run build:ocr && npm run build:worker && npm run copy:swift"
-  },
-  "build": {
-    "appId": "com.playback.app",
-    "files": [
-      "dist/**/*"
-    ],
-    "asarUnpack": [
-      "node_modules/better-sqlite3/**/*"
-    ],
-    "directories": {
-      "output": "release"
-    }
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "postinstall": "electron-builder install-app-deps",
+    "package:mac": "npm run build:all && cross-env NODE_ENV=production electron-builder --mac --x64 --config build.config.js",
+    "package:dir": "npm run build:all && electron-builder --dir"
   },
   "keywords": [],
-  "author": "",
+  "author": "Fabian Weber",
   "license": "ISC",
-  "description": "",
+  "description": "Playback Alpha is a data capture tool for capturing and analyzing user behavior on their desktop.",
   "devDependencies": {
     "@jest/globals": "^29.0.0",
     "@types/aws-sdk": "^0.0.42",
@@ -42,8 +29,9 @@
     "@types/react-dom": "^18.2.19",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.21",
+    "cross-env": "^7.0.3",
     "electron": "^29.1.0",
-    "electron-builder": "^24.12.0",
+    "electron-builder": "^24.13.3",
     "electron-is-dev": "^2.0.0",
     "electron-rebuild": "^3.2.9",
     "electron-vite": "^2.3.0",

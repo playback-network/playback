@@ -1,0 +1,17 @@
+appId: com.playback.app
+productName: Playback
+mac:
+  category: public.app-category.productivity
+  target:
+    - dmg
+    - zip
+files:
+  - dist/**/*
+  - node_modules/**/*
+  - package.json
+  - .env.production
+extraResources:
+  - from: .env.production
+    to: .env.production
+  - from: dist/bin
+    to: bin
