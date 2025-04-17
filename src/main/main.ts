@@ -2,18 +2,19 @@ import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from 'electron';
 import path from 'node:path';
 import { initializeDatabase } from '../db/db';
 import { performOCRAndRedact } from '../services/ocr_service'; // Corrected import path
-import { stopBackgroundProcesses, userEventEmitter } from '../services/process_manager';
+import { stopBackgroundProcesses, stopUploadLoop, userEventEmitter } from '../services/process_manager';
 import { handleUserEvent } from '../services/capture_engine';
 import { getRedactedScreenshotCount, initializeSession } from '../db/db_utils';
 import { setActiveSessionId } from '../db/sessionStore';
-import { uploadRedactedScreenshotsAndEvents } from '../db/db_s3_utils';
 import './auth';
 import dotenv from 'dotenv';
-import { performanceLoop } from './performance';
+import { startMonitoring } from './performance';
+import { log } from '../services/logger';
+import { uploadAppLogs } from '../db/db_s3_utils';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
-let isQuiting = false;
+let isQuitting = false;
 
 const isProd = process.env.NODE_ENV === 'production';
 const envPath = isProd
@@ -21,25 +22,22 @@ const envPath = isProd
   : path.resolve(__dirname, '../../.env');              // in dev
 
 dotenv.config({ path: envPath });
-app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096 --trace-gc');
 
-function cleanup() {
-  stopBackgroundProcesses();
-  if (tray) {
-    tray.destroy();
-    tray = null;
-  }
-  if (mainWindow) {
-    mainWindow.destroy();
-    mainWindow = null;
-  }
-}
+async function shutdown() {
+  if (isQuitting) return;
+  isQuitting = true;
+  log('app:shutdown:start');
 
-function shutdown() {
-  if (isQuiting) return;
-  isQuiting = true;
-  cleanup();
-  app.quit();
+  try {
+    await stopUploadLoop();
+    await uploadAppLogs();
+    stopBackgroundProcesses();
+    log('app:shutdown:complete');
+  } catch (err) {
+    log('shutdown:error', { error: err.message });
+  } finally {
+    app.quit(); // still needed to gracefully exit Electron
+  }
 }
 
 function createWindow() {
@@ -53,9 +51,6 @@ function createWindow() {
     },
     show: false
   });
-
-  // Log both variables to debug
-  console.log('ELECTRON_RENDERER_URL:', process.env.ELECTRON_RENDERER_URL);
 
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
@@ -81,7 +76,7 @@ function createWindow() {
   });
 
   mainWindow.on('close', (event) => {
-    if (!isQuiting) {
+    if (!isQuitting) {
       event.preventDefault();
       mainWindow?.hide();
       return false;
@@ -102,7 +97,7 @@ function createTray() {
     {
       label: 'Quit',
       click: () => {
-        isQuiting = true;
+        isQuitting = true;
         app.quit();
       },
     },
@@ -135,15 +130,17 @@ ipcMain.handle('db:getRedactedCount', async () => {
   return redactedCount;
 });
 
-
 // Initialize the database when the app starts
 app.whenReady().then(async () => {
+  log('app:start', { platform: process.platform, version: app.getVersion() });
+
   await initializeDatabase();
   const sessionId = await initializeSession();
   await setActiveSessionId(sessionId);
   createWindow();
   createTray();
-  performanceLoop();
+  startMonitoring();
+  log('session:initialized', { sessionId });
 });
 
 app.on('activate', () => {
@@ -154,12 +151,30 @@ app.on('activate', () => {
   }
 }); 
 
-app.on('before-quit', shutdown);
+app.on('before-quit', async (event) => {
+  if (isQuitting) return;
+  event.preventDefault(); // prevent default quit
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') shutdown();
+  isQuitting = true;
+  log('app:shutdown:start');
+
+  try {
+    await uploadAppLogs();
+    log('app:logs:uploaded');
+  } catch (err) {
+    log('upload:fail', { error: err.message });
+  } finally {
+    shutdown(); 
+    app.exit();
+  }
+});
+process.once('exit', shutdown);
+process.on('SIGINT', async () => {
+  await shutdown();
+  process.exit(0);
 });
 
-process.on('SIGTERM', shutdown);
-
-process.on('SIGINT', shutdown);
+process.on('SIGTERM', async () => {
+  await shutdown();
+  process.exit(0);
+});

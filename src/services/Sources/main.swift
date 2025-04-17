@@ -111,7 +111,6 @@ func performNER(on text: String) -> [String] {
             }
         }
     }
-
     return Array(entities)
 }
 
@@ -218,7 +217,7 @@ func drawRedactionBoxes(on imageData: Data, words: [(String, CGRect)], entities:
     let finalImage = NSBitmapImageRep(cgImage: newCGImage)
 
     // ✅ Return the image as JPG data instead of saving it
-    return finalImage.representation(using: .jpeg, properties: [:])
+    return finalImage.representation(using: .jpeg, properties: [.compressionFactor: 0.7])
 }
 
 func routes(_ app: Application) throws {

@@ -19,7 +19,10 @@ export function startContinuousCapture() {
     try {
       const img = await screenshot({ format: 'jpeg' });
       screenshotQueue.push({ img, timestamp });
-      if (screenshotQueue.length > MAX_QUEUE_SIZE) screenshotQueue.shift();
+      if (screenshotQueue.length > MAX_QUEUE_SIZE) {
+        const removed = screenshotQueue.shift();
+        if (removed?.img) removed.img.fill(0); // optional manual release
+      }
     } catch (err) {
       console.error('🖼️ Screenshot capture error:', err);
     }
@@ -66,6 +69,8 @@ async function handleEventScreenshots(
       const afterId = await insertScreenshot(afterImg, null, afterTs);
 
       await recordEvent(eventType, eventDetails, beforeId, afterId, beforeTs);
+      beforeImg.fill(0);
+      afterImg.fill(0);
     }
 
     if (win?.webContents) win.webContents.send('screenshotSaved');
@@ -102,17 +107,18 @@ export function handleUserEvent(event: any, win?: BrowserWindow) {
       const afterTs = new Date(pair[1].timestamp);
       const beforeImg = scrollStartBuffer.img;
       const beforeTs = new Date(scrollStartBuffer.timestamp);
-  
+      
       scrollStartBuffer = null;
   
       insertScreenshot(beforeImg, null, beforeTs).then(beforeId =>
-        insertScreenshot(afterImg, null, afterTs).then(afterId =>
-          recordEvent('scroll', eventDetails, beforeId, afterId, beforeTs)
-        )
+        insertScreenshot(afterImg, null, afterTs).then(afterId => {
+          beforeImg.fill(0);
+          afterImg.fill(0);
+          return recordEvent('scroll', eventDetails, beforeId, afterId, beforeTs)
+        })
       ).catch(err => {
         console.error('⚠️ Failed to record scroll event:', err);
       });
-  
       if (win?.webContents) win.webContents.send('screenshotSaved');
     }
     return;

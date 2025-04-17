@@ -3,7 +3,7 @@ import path from 'node:path';
 import { startContinuousCapture, stopContinuousCapture } from './capture_engine';
 import { EventEmitter } from 'events';
 import { getPendingScreenshots, setScreenshotQueuedForOCR } from '../db/db_redacted_utils';
-import { queueForOCR } from './ocr_queue';
+import { getOCRQueueLength, queueForOCR } from './ocr_queue';
 import { uploadRedactedScreenshotsAndEvents } from '../db/db_s3_utils';
 import { app } from 'electron';
 
@@ -87,16 +87,26 @@ export function stopUploadLoop() {
 }
 
 function pollAndRedactScreenshots() {
+  const maxQueueSize = 10;
+
   setInterval(async () => {
     try {
-      const unredacted = await getPendingScreenshots(); // should return [{ id, image }]
+      const current = getOCRQueueLength();
+      if (current >= maxQueueSize) {
+        console.log(`⏳ OCR queue full (${current}/${maxQueueSize}), skipping poll`);
+        return;
+      }
+
+      const available = maxQueueSize - current;
+      const unredacted = await getPendingScreenshots(available);
+      if (unredacted.length === 0) return;
+
       for (const shot of unredacted) {
         await setScreenshotQueuedForOCR(shot.id);
         queueForOCR(shot.id, shot.image);
       }
-      
     } catch (err) {
       console.error('❌ Error fetching unredacted screenshots:', err);
     }
-  }, 5000); // every 5s
+  }, 5000);
 }

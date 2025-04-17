@@ -2,21 +2,25 @@
   import AsyncLimiter from 'async-limiter';
 
   const limit = new AsyncLimiter({ maxConcurrent: 3 });
-
+  const MAX_QUEUE_SIZE = 10;
+  
   export function queueForOCR(screenshotId: number, imageData: Buffer) {
-    if (!screenshotId || !imageData) {
-      console.error(`Invalid screenshotId or imageData: ${screenshotId}`);
+    if (limit.length >= MAX_QUEUE_SIZE) {
+      console.warn(`⚠️ OCR queue full, skipping screenshot ${screenshotId}`);
       return;
     }
-
+  
     limit.push(async (cb) => {
       try {
-        const redactedImage = await performOCRAndRedact(imageData);
-        await runOcrWorker(screenshotId, redactedImage);
+        // await performOCRAndRedact(imageData);
+        await runOcrWorker(screenshotId, imageData);
         cb();
-      } catch (error) {
-        console.error(`Error processing screenshot ${screenshotId}:`, error);
-        cb(error);
+      } catch (err) {
+        cb(err);
       }
     });
+  }
+  
+  export function getOCRQueueLength(): number {
+    return limit.length;
   }

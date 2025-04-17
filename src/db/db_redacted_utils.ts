@@ -1,8 +1,12 @@
 import { query } from './db';
 import AWS from 'aws-sdk';
 
-export const getPendingScreenshots = async () => {
-  return await query('SELECT * FROM screenshots WHERE processing_status = ?', ['pending']);
+export const getPendingScreenshots = async (limit = 10) => {
+  const results = await query(
+    `SELECT * FROM screenshots WHERE processing_status = ? ORDER BY id ASC LIMIT ?`,
+    ['pending', limit]
+  );
+  return results || [];
 };
 
 export const insertRedactedScreenshot = async (originalId: number, redactedImage: Buffer, timestamp: Date) => {
