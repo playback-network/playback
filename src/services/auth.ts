@@ -28,11 +28,27 @@ export async function getIdToken(): Promise<string> {
   return rows[0].id_token;
 }
 
+function isIdTokenExpired(idToken: string): boolean {
+  try {
+    const [, payloadB64] = idToken.split('.');
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64').toString());
+    const now = Math.floor(Date.now() / 1000);
+    return payload.exp <= now;
+  } catch (err) {
+    return true; // assume expired if can't parse
+  }
+}
+
 /**
  * sets AWS SDK credentials using the provided Cognito ID token.
  * avoids redundant refreshes by default (120s cooldown).
  */
 export async function setAWSCredentials(idToken: string): Promise<void> {
+  if (!idToken || isIdTokenExpired(idToken)) {
+    console.warn('⚠️ Cannot set AWS credentials — idToken is missing or expired');
+    throw new Error('Expired or missing token');
+  }
+
   const region = process.env.AWS_REGION!;
   const identityPoolId = process.env.IDENTITY_POOL_ID!;
   const userPoolId = process.env.USER_POOL_ID!;

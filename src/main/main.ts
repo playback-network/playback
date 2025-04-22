@@ -88,7 +88,8 @@ function createWindow() {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, '../../assets/icon.svg');
+  const iconPath = path.join(__dirname, '../assets/logo.png');
+  console.log('iconPath', iconPath);
   const icon = nativeImage.createFromPath(iconPath);
   tray = new Tray(icon);
 
@@ -168,8 +169,7 @@ app.on('before-quit', async (event) => {
   event.preventDefault(); // prevent default quit
 
   isQuitting = true;
-  log('app:shutdown:start');
-
+  log('app:shutdown:start'); 
   try {
     await uploadAppLogs();
     log('app:logs:uploaded');

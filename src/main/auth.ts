@@ -25,9 +25,11 @@ ipcMain.handle('auth:signUp', async (_event, { username, password, email }) => {
     const attributes = [new CognitoUserAttribute({ Name: 'email', Value: email })];
     userPool.signUp(username, password, attributes, null, (err, result) => {
       if (err) return reject(err.message);
-      resolve({ message: 'User registered successfully', username: result?.user.getUsername() });
-      startBackgroundProcesses();
-      startUploadLoop();
+      try {
+        resolve({ message: 'User registered successfully', username: result?.user.getUsername() });
+      } catch (e) {
+        reject(`Sign up succeeded, but init failed: ${e.message}`);
+      }
     });
   });
 });

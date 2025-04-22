@@ -87,12 +87,19 @@ export async function uploadAppLogs() {
       const files = fs.readdirSync(logsPath)
         .filter(f => f.endsWith('.log') || f.endsWith('.heapsnapshot'));
   
-      if (!files.length) return;
-  
-      const idToken = await getIdToken();
-      const cognitoIdentityId = await getCognitoIdentityFromDB();
+        if (files.length === 0) {
+          console.log('📁 No logs to upload');
+          return;
+        }  
+      let idToken, cognitoIdentityId;
+      try {
+        idToken = await getIdToken();
+        cognitoIdentityId = await getCognitoIdentityFromDB();
+      } catch (err) {
+        console.warn('⚠️ Skipping log upload — user not signed in or identity unavailable');
+        return;
+      }
       await setAWSCredentials(idToken);
-  
       const s3 = new AWS.S3();
   
       for (const file of files) {
