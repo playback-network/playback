@@ -20,7 +20,7 @@ module.exports = {
     hardenedRuntime: true,
     entitlements: 'entitlements.mac.plist',
     gatekeeperAssess: false,
-    icon: 'assets/icon.icns'
+    icon: 'src/assets/logo.icns'
   },
   dmg: {
     sign: false
@@ -33,6 +33,15 @@ module.exports = {
     {
       from: 'dist/bin',
       to: 'bin'
+    }
+  ],
+  publish: [
+    {
+      provider: 's3',
+      bucket: 'playback-updater',
+      region: 'eu-north-1',
+      path: 'updates'
+      //acl: 'public-read'
     }
   ]
 };

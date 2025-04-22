@@ -1,4 +1,4 @@
-  import { performOCRAndRedact, runOcrWorker } from './ocr_service';
+  import { runOcrWorker } from './ocr_service';
   import AsyncLimiter from 'async-limiter';
 
   const limit = new AsyncLimiter({ maxConcurrent: 3 });

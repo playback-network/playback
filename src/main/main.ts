@@ -6,22 +6,18 @@ import { stopBackgroundProcesses, stopUploadLoop, userEventEmitter } from '../se
 import { handleUserEvent } from '../services/capture_engine';
 import { getRedactedScreenshotCount, initializeSession } from '../db/db_utils';
 import { setActiveSessionId } from '../db/sessionStore';
-import './auth';
 import dotenv from 'dotenv';
+import './auth';
+import { getUserPool } from './auth';
 import { startMonitoring } from './performance';
 import { log } from '../services/logger';
 import { uploadAppLogs } from '../db/db_s3_utils';
-
+import { checkForUpdates } from './updater';
+import { fileURLToPath } from 'url';
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 
-const isProd = process.env.NODE_ENV === 'production';
-const envPath = isProd
-  ? path.join(process.resourcesPath, '.env.production') // in packaged app
-  : path.resolve(__dirname, '../../.env');              // in dev
-
-dotenv.config({ path: envPath });
 
 async function shutdown() {
   if (isQuitting) return;
@@ -41,9 +37,16 @@ async function shutdown() {
 }
 
 function createWindow() {
+  const isProd = app.isPackaged;
+  const iconPath = isProd
+    ? path.join(process.resourcesPath, 'assets', 'icon.icns')
+    : path.join(fileURLToPath(new URL('.', import.meta.url)), '../assets/icon.png');
+  console.log('iconPath', iconPath);
+
   mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
+    icon: iconPath,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -132,7 +135,16 @@ ipcMain.handle('db:getRedactedCount', async () => {
 
 // Initialize the database when the app starts
 app.whenReady().then(async () => {
+  const envPath = app.isPackaged
+  ? path.join(process.resourcesPath, '.env.production') // correct for macOS
+  : path.resolve(__dirname, '../../.env');              // in dev
+
+  const result = dotenv.config({ path: envPath });
+  if (result.error) console.error('❌ dotenv error:', result.error);
+  else console.log('✅ env loaded from:', envPath);
+  getUserPool();
   log('app:start', { platform: process.platform, version: app.getVersion() });
+  checkForUpdates();
 
   await initializeDatabase();
   const sessionId = await initializeSession();

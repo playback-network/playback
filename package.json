@@ -12,8 +12,9 @@
     "copy:swift": "mkdir -p dist/bin && cp src/services/.build/release/OCRServer dist/bin/ && cp src/services/.build/release/Eventlogger dist/bin/",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "postinstall": "electron-builder install-app-deps",
-    "package:mac": "npm run build:all && cross-env NODE_ENV=production electron-builder --mac --x64 --config build.config.js",
-    "package:dir": "npm run build:all && electron-builder --dir"
+    "package:mac": "npm run build:all && cross-env NODE_ENV=production electron-builder --mac --arm64 --config build.config.js",
+    "package:dir": "npm run build:all && cross-env NODE_ENV=production electron-builder --dir",
+    "publish:mac": "aws s3 cp release/Playback-*.dmg s3://playback-updater/updates/ && aws s3 cp release/latest-mac.yml s3://playback-updater/updates/ "
   },
   "keywords": [],
   "author": "Fabian Weber",
@@ -57,6 +58,8 @@
     "aws-sdk": "^2.1692.0",
     "axios": "^1.8.4",
     "better-sqlite3": "^11.9.1",
+    "electron-log": "^5.3.3",
+    "electron-updater": "^6.6.2",
     "node-fetch": "^3.3.2",
     "pidusage": "^4.0.0",
     "piscina": "^4.9.2",

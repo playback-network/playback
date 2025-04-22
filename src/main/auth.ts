@@ -6,13 +6,19 @@ import { startUploadLoop, stopUploadLoop } from '../services/process_manager';
 import { startBackgroundProcesses } from '../services/process_manager';
 import { stopContinuousCapture } from '../services/capture_engine';
 
-let userPoolData = {
-    UserPoolId: process.env.USER_POOL_ID,
-    ClientId: process.env.CLIENT_ID
-};
-let userPool = new CognitoUserPool(userPoolData);
+let userPool: CognitoUserPool | null = null;
 
-let isUserAuthenticated = false;
+export function getUserPool() {
+  const { USER_POOL_ID, CLIENT_ID } = process.env;
+  if (!USER_POOL_ID || !CLIENT_ID) throw new Error('Missing USER_POOL_ID or CLIENT_ID');
+
+  userPool = new CognitoUserPool({
+    UserPoolId: USER_POOL_ID,
+    ClientId: CLIENT_ID
+  });
+
+  return userPool;
+}
 
 ipcMain.handle('auth:signUp', async (_event, { username, password, email }) => {
   return new Promise((resolve, reject) => {
@@ -68,7 +74,6 @@ ipcMain.handle('auth:signIn', async (_event, { username, password }) => {
             access_token = excluded.access_token;
         `, [username, username, identityId, idToken, refreshToken, accessToken]);
 
-        isUserAuthenticated = true;
         startBackgroundProcesses();
         startUploadLoop();
         resolve({ message: 'Signed in', cognito_identity_id: identityId });
@@ -104,7 +109,6 @@ ipcMain.handle('auth:getStatus', async () => {
         cognito_identity_id = excluded.cognito_identity_id;
     `, [username, email, identityId]);
 
-    isUserAuthenticated = true;
     startBackgroundProcesses();
     startUploadLoop();
     return { isLoggedIn: true, username };
@@ -118,7 +122,6 @@ ipcMain.handle('auth:logout', async () => {
     await stopContinuousCapture();
     await stopUploadLoop();
     query('DELETE FROM users');
-    isUserAuthenticated = false;
     return { status: 'ok' };
   } catch (error) {
     console.error('Error during logout:', error);

@@ -5,10 +5,13 @@ import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
 
-const BUCKET_NAME = process.env.BUCKET_NAME;
 
-if (!BUCKET_NAME) {
-    throw new Error('❌ BUCKET_NAME not set in environment (.env)');
+function getBucket(){
+  const BUCKET_NAME = process.env.BUCKET_NAME;
+  if (!BUCKET_NAME) {
+      throw new Error('❌ BUCKET_NAME not set in environment (.env)');
+  }
+  return BUCKET_NAME;
 }
 
 export async function uploadRedactedScreenshotsAndEvents() {
@@ -52,7 +55,7 @@ export async function uploadRedactedScreenshotsAndEvents() {
       const eventsKey = `${baseKey}-events.json`;
 
       await s3.upload({
-        Bucket: BUCKET_NAME!,
+        Bucket: getBucket(),
         Key: imageKey,
         Body: redacted_image,
         ContentType: 'image/png',
@@ -60,7 +63,7 @@ export async function uploadRedactedScreenshotsAndEvents() {
       }).promise();
 
       await s3.upload({
-        Bucket: BUCKET_NAME!,
+        Bucket: getBucket(),
         Key: eventsKey,
         Body: JSON.stringify(events, null, 2),
         ContentType: 'application/json',
@@ -98,7 +101,7 @@ export async function uploadAppLogs() {
         const s3Key = `${cognitoIdentityId}/logs/${file}`;
   
         await s3.upload({
-          Bucket: BUCKET_NAME!,
+          Bucket: getBucket(),
           Key: s3Key,
           Body: body,
           ACL: 'private',
