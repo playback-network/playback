@@ -5,11 +5,13 @@ import Loading from './Loading';
 
 
 const AuthForm: React.FC = () => {
-  const [password, setPassword] = useState('ThisIsMyTest1234!');
-  const [email, setEmail] = useState('weberfabian1@gmx.de');
+  const isDev = process.env.NODE_ENV === 'development';
+
+  const [password, setPassword] = useState(isDev ? 'ThisIsMyTest1234!' : '');
+  const [email, setEmail] = useState(isDev ? 'weberfabian1@gmx.de' : '');
   const [confirmationCode, setConfirmationCode] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
-  const [username, setUsername] = useState<string>('weberfabian1@gmx.de');
+  const [username, setUsername] = useState<string>(isDev ? 'weberfabian1@gmx.de' : '');
   const [needsConfirmation, setNeedsConfirmation] = useState(false); // Flag for email verification
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);

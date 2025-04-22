@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "dist/main/main.js",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "cross-env NODE_ENV=development electron-vite dev",
     "build": "electron-vite build",
     "build:all": "npm run build && npm run postbuild",
     "build:worker": "tsc --project tsconfig.worker.json",
