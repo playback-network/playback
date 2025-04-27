@@ -1,7 +1,7 @@
 import { query } from './db';
 import AWS from 'aws-sdk';
-import path from 'node:path';
-import fs from 'node:fs';
+import path from 'path';
+import fs from 'fs';
 import { execSync } from 'child_process';
 import { app } from 'electron';
 import { getActiveSessionId as getSessionId } from './sessionStore';

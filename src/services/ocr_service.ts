@@ -1,10 +1,12 @@
 import { Worker } from 'worker_threads';
-import { resolve } from 'path';
+import { app } from 'electron';
+import path from 'path';
 import axios from 'axios';
 import FormData from 'form-data';
 import { insertRedactedScreenshot, setScreenshotCompleted, resolveFailedScreenshot } from '../db/db_redacted_utils';
 
 const SWIFT_SERVER_URL = "http://127.0.0.1:8080/ocr";
+const isProd = app.isPackaged;
 
 export async function performOCRAndRedact(imageBuffer: Buffer): Promise<Buffer> {
   const form = new FormData();
@@ -27,8 +29,9 @@ export async function performOCRAndRedact(imageBuffer: Buffer): Promise<Buffer> 
 
 export function runOcrWorker(screenshotId: number, imageData: Buffer): Promise<void> {
   return new Promise((resolveWorker, rejectWorker) => {
-    const workerPath = resolve(__dirname, '../workers/services/workers/ocr_worker.js');
-    const worker = new Worker(workerPath);
+    const workerPath = isProd
+      ? path.join(process.resourcesPath, 'workers', 'services', 'workers', 'ocr_worker.js')
+      : path.join(__dirname, '../workers/services/workers/ocr_worker.js');    const worker = new Worker(workerPath);
 
     worker.once('message', async (msg) => {
       const { status, redactedImage, error } = msg;

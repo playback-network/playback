@@ -40,3 +40,12 @@ release/*
 logs/*
 
 package-lock.json
+dev_cert.pem 
+*.pem
+*.cer
+
+# Notarization
+*.zip
+*.dmg
+*.pkg
+*.app.zip

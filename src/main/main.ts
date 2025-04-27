@@ -43,6 +43,9 @@ function createWindow() {
     : path.join(fileURLToPath(new URL('.', import.meta.url)), '../assets/icon.png');
   console.log('iconPath', iconPath);
 
+  const preloadPath = isProd
+  ? path.join(process.resourcesPath, 'preload', 'index.js')
+  : path.join(__dirname, '../preload/index.js');
   mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
@@ -50,7 +53,7 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      preload: path.join(__dirname, '../preload/index.js')
+      preload: preloadPath
     },
     show: false
   });
@@ -60,7 +63,7 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   } else {
     // This shouldn't run in dev mode
-    const indexHtml = path.join(__dirname, '../renderer/index.html');
+    const indexHtml = path.join(process.resourcesPath, 'renderer', 'index.html')
     console.log('Loading from:', indexHtml);
     mainWindow.loadFile(indexHtml);
   }

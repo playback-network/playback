@@ -23,10 +23,5 @@ let package = Package(
             path: "Sources",
             sources:  ["eventlogger.swift"]
         ),
-        .executableTarget(
-            name: "StressTest",
-            path: "stress",
-            sources: ["stress_test.swift"]
-        )
     ]
 )

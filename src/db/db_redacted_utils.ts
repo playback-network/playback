@@ -1,5 +1,4 @@
 import { query } from './db';
-import AWS from 'aws-sdk';
 
 export const getPendingScreenshots = async (limit = 10) => {
   const results = await query(
