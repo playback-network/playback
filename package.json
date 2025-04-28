@@ -13,7 +13,7 @@
     "postbuild": "npm run build:ocr && npm run build:worker && npm run copy:swift && npm run copy:assets",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "postinstall": "electron-builder install-app-deps",
-    "package:mac": "npm run build:all && electron-builder --mac --arm64 --config build.config.js && xcrun stapler staple release/Playback.app",
+    "package:mac": "npm run build:all && electron-builder --mac --arm64 --config build.config.js",
     "package:mac:test": "cross-env ENABLE_SIGNING=0 ENABLE_NOTARIZE=0 npm run package:mac",
     "package:mac:sign": "cross-env ENABLE_SIGNING=1 ENABLE_NOTARIZE=0 npm run package:mac",
     "package:mac:prod": "cross-env ENABLE_SIGNING=1 ENABLE_NOTARIZE=1 npm run package:mac",
