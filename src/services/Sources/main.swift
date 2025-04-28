@@ -11,6 +11,40 @@ import Dispatch
 let processingQueue = DispatchQueue(label: "ocr.processing.queue", attributes: .concurrent)
 let semaphore = DispatchSemaphore(value: 3)
 
+struct Redactor {
+    
+    static let patterns: [String: String] = [
+        "email": #"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"#,
+        "phone": #"(\+?\d{1,3}?[-.\s]?(\(?\d{1,4}?\))?[-.\s]?\d{1,4}[-.\s]?\d{1,9})"#,
+        "mongoID": #"^[a-f\d]{24}$"#,
+        "passportNumber": #"^(?!^0+$)[a-zA-Z0-9]{3,20}$"#,
+        "flightNumber": #"^[A-Z]{2}\d{3,4}$"#,
+        "iban": #"^[A-Z]{2}\d{2}[A-Z0-9]{1,30}$"#,
+        "bankAccount": #"^\d{6,20}$"#,
+        "ipv4": #"^(?:\d{1,3}\.){3}\d{1,3}$"#,
+        "ipv6": #"^(?:[A-Fa-f0-9]{1,4}:){7}[A-Fa-f0-9]{1,4}$"#,
+        "passwordField": #"(?i)(password|passwd|pwd)\s*[:=]\s*.+$"#  // captures things like "password: hunter2"
+    ]
+    
+    static func redact(in text: String) -> String {
+        var redactedText = text
+        
+        for (label, pattern) in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+                let matches = regex.matches(in: redactedText, options: [], range: NSRange(redactedText.startIndex..., in: redactedText))
+                
+                for match in matches.reversed() {  // reverse so ranges don't shift
+                    if let range = Range(match.range, in: redactedText) {
+                        redactedText.replaceSubrange(range, with: "[REDACTED \(label.uppercased())]")
+                    }
+                }
+            }
+        }
+        return redactedText
+    }
+}
+
+
 func processImage(_ base64Image: String) throws -> String? {
     semaphore.wait()
     defer { semaphore.signal() }
@@ -62,55 +96,20 @@ func performOCR(on imageData: Data) -> [(String, CGRect)] {
 }
 
 func performNER(on text: String) -> [String] {
-    // print("📜 Running NER on text: \(text)") 
-    let tagger = NLTagger(tagSchemes: [.nameType])
-    tagger.string = text
-    var entities: Set<String> = [] // Prevent duplicates
+    var entities: Set<String> = []
 
-    let personalDataTags: [NLTag] = [.personalName, .organizationName, .placeName]
-
-    let options: NLTagger.Options = [.omitWhitespace, .omitPunctuation, .joinNames]
-
-    // 🔹 Step 1: Named Entity Recognition (NER)
-    tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word, scheme: .nameType, options: options) { tag, range in
-        if let tag = tag, personalDataTags.contains(tag) {
-            let entity = String(text[range])
-
-            // Exclude false positives
-            let ignoredWords: Set<String> = ["Inc", "Ltd", "Co", "Mode", "Agent", "Bom", "MN", "HP", "VV", "VN"]
-            if entity.count > 2, !ignoredWords.contains(entity) {
-                entities.insert(entity)
-            }
-        }
-        return true
-    }
-
-    // 🔹 Step 2: Detect emails manually using Regular Expressions
-    let emailPattern = #"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"#
-    if let regex = try? NSRegularExpression(pattern: emailPattern, options: []) {
-        let matches = regex.matches(in: text, options: [], range: NSRange(text.startIndex..., in: text))
-
-        for match in matches {
-            if let range = Range(match.range, in: text) {
-                let detectedEmail = String(text[range])
-                print("📧 Found email:", detectedEmail)  // Debugging
-                entities.insert(detectedEmail)
+    for (_, pattern) in Redactor.patterns {
+        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+            for match in matches {
+                if let range = Range(match.range, in: text) {
+                    let detected = String(text[range])
+                    entities.insert(detected)
+                }
             }
         }
     }
 
-    // 🔹 Step 3: Detect phone numbers & URLs
-    let types: NSTextCheckingResult.CheckingType = [.phoneNumber]
-    if let detector = try? NSDataDetector(types: types.rawValue) {
-        let matches = detector.matches(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count))
-
-        for match in matches {
-            if let range = Range(match.range, in: text) {
-                let detectedString = String(text[range])
-                entities.insert(detectedString)
-            }
-        }
-    }
     return Array(entities)
 }
 
