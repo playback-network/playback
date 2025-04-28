@@ -14,6 +14,9 @@
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "postinstall": "electron-builder install-app-deps",
     "package:mac": "npm run build:all && electron-builder --mac --arm64 --config build.config.js && xcrun stapler staple release/Playback.app",
+    "package:mac:test": "cross-env ENABLE_SIGNING=0 ENABLE_NOTARIZE=0 npm run package:mac",
+    "package:mac:sign": "cross-env ENABLE_SIGNING=1 ENABLE_NOTARIZE=0 npm run package:mac",
+    "package:mac:prod": "cross-env ENABLE_SIGNING=1 ENABLE_NOTARIZE=1 npm run package:mac",
     "package:dir": "npm run build:all && cross-env NODE_ENV=production electron-builder --dir",
     "publish:mac": "aws s3 cp release/Playback-*.dmg s3://playback-updater/updates/ && aws s3 cp release/latest-mac.yml s3://playback-updater/updates/ "
   },

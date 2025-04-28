@@ -3,6 +3,8 @@ const fs = require('fs')
 const { execSync } = require('child_process');
 require('dotenv').config();
 
+const shouldNotarize = process.env.ENABLE_NOTARIZE === '1';
+
 module.exports = {
   appId: 'com.playback.app',
   productName: 'Playback',
@@ -61,6 +63,7 @@ module.exports = {
     }
   ],
   afterSign: async (ctx) => {
+    
     const appPath = path.join(ctx.appOutDir, 'Playback.app');
     const binDir = path.join(appPath, 'Contents', 'Resources', 'bin');
     if (fs.existsSync(binDir)) {
@@ -78,6 +81,11 @@ module.exports = {
     console.log(`🔏 re-signing full app bundle: ${appPath}`);
     execSync(`codesign --deep --force --timestamp --options runtime --entitlements entitlements.mac.plist --sign "Developer ID Application: Fabian Weber (2GPXPUFF8U)" "${appPath}"`);
 
+    if (!shouldNotarize) {
+      console.log('🛑 skipping notarization bc ENABLE_NOTARIZE != 1');
+      return;
+    }
+    
     const appZipPath = path.join(ctx.appOutDir, 'Playback.zip');
     console.log(`📦 zipping app for notarization...`);
     execSync(`ditto -c -k --sequesterRsrc --keepParent "${appPath}" "${appZipPath}"`);
