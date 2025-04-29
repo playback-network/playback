@@ -50,5 +50,11 @@ parentPort?.on('message', async ({ screenshotId, imageData }: WorkerMessage) => 
       screenshotId,
       error: err.message,
     });
+  } finally {
+    try {
+      imageData.fill(0);
+    } catch (err) {
+      console.error(`❌ OCR worker error for screenshot ${screenshotId}:`, err);
+    }
   }
 });

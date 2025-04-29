@@ -1,3 +1,7 @@
+process.env.NODE_OPTIONS = '--max-old-space-size=4096';
+process.env.ELECTRON_DEFAULT_MAX_CODE_CACHE_SIZE_MB = '1024';
+
+
 import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from 'electron';
 import path from 'node:path';
 import { initializeDatabase } from '../db/db';
@@ -63,7 +67,7 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   } else {
     // This shouldn't run in dev mode
-    const indexHtml = path.join(process.resourcesPath, 'renderer', 'index.html')
+    const indexHtml = path.join(app.getAppPath(), 'dist', 'renderer', 'index.html');
     console.log('Loading from:', indexHtml);
     mainWindow.loadFile(indexHtml);
   }
@@ -91,8 +95,11 @@ function createWindow() {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, '../assets/logo.png');
-  console.log('iconPath', iconPath);
+  const isProd = app.isPackaged;
+  const iconPath = isProd
+    ? path.join(process.resourcesPath, 'assets', 'logo.png')
+    : path.join(fileURLToPath(new URL('.', import.meta.url)), '../assets/logo.png');
+    console.log('iconPath', iconPath);
   const icon = nativeImage.createFromPath(iconPath);
   tray = new Tray(icon);
 

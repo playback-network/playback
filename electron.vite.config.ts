@@ -2,7 +2,6 @@ import { resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'electron-vite';
 import pkg from './package.json';
-import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   main: {
@@ -39,7 +38,7 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'src/renderer/index.html')
         },
-        external: ['better_sqlite3']
+        external: ['better_sqlite3', 'aws-sdk']
       },
       minify: true
     },

@@ -31,7 +31,9 @@ export function runOcrWorker(screenshotId: number, imageData: Buffer): Promise<v
   return new Promise((resolveWorker, rejectWorker) => {
     const workerPath = isProd
       ? path.join(process.resourcesPath, 'workers', 'services', 'workers', 'ocr_worker.js')
-      : path.join(__dirname, '../workers/services/workers/ocr_worker.js');    const worker = new Worker(workerPath);
+      : path.join(__dirname, '../workers/services/workers/ocr_worker.js');    
+      
+    const worker = new Worker(workerPath);
 
     worker.once('message', async (msg) => {
       const { status, redactedImage, error } = msg;
@@ -40,17 +42,21 @@ export function runOcrWorker(screenshotId: number, imageData: Buffer): Promise<v
         try {
           const redactedBuffer = Buffer.from(redactedImage, 'base64');
           await insertRedactedScreenshot(screenshotId, redactedBuffer, new Date());
+          redactedBuffer.fill(0);
+          imageData.fill(0);
           await setScreenshotCompleted(screenshotId);
           console.log(`🧠 OCR success inserted screenshot ${screenshotId}`);
           resolveWorker();
         } catch (err) {
           console.error(`🔥 Failed DB write for screenshot ${screenshotId}:`, err);
           await resolveFailedScreenshot(screenshotId);
+          imageData.fill(0);
           rejectWorker(err);
         }
       } else {
         console.error(`🚫 Worker failed for screenshot ${screenshotId}:`, error);
         await resolveFailedScreenshot(screenshotId);
+        imageData.fill(0);
         rejectWorker(new Error(error || 'Worker failed'));
       }
     });

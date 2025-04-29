@@ -103,6 +103,7 @@ function pollAndRedactScreenshots() {
 
       for (const shot of unredacted) {
         await setScreenshotQueuedForOCR(shot.id);
+        
         queueForOCR(shot.id, shot.image);
       }
     } catch (err) {

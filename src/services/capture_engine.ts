@@ -33,6 +33,9 @@ export function stopContinuousCapture() {
   if (captureInterval) {
     clearInterval(captureInterval);
     captureInterval = null;
+    for (const shot of screenshotQueue) {
+      shot.img.fill(0);
+    }
     screenshotQueue = [];
   }
 }
@@ -57,7 +60,8 @@ async function handleEventScreenshots(
       const img = Buffer.from(frame.img);
       const ts = new Date(frame.timestamp);
       const screenshotId = await insertScreenshot(img, null, ts);
-
+      img.fill(0);
+      frame.img.fill(0);
       await recordEvent(eventType, eventDetails, screenshotId, screenshotId, ts);
     } else {
       const beforeImg = Buffer.from(pair[0].img);
@@ -108,6 +112,7 @@ export function handleUserEvent(event: any, win?: BrowserWindow) {
       const beforeImg = scrollStartBuffer.img;
       const beforeTs = new Date(scrollStartBuffer.timestamp);
       
+      if (scrollStartBuffer?.img) scrollStartBuffer.img.fill(0);
       scrollStartBuffer = null;
   
       insertScreenshot(beforeImg, null, beforeTs).then(beforeId =>

@@ -4,7 +4,6 @@ const { execSync } = require('child_process');
 require('dotenv').config();
 
 const shouldNotarize = process.env.ENABLE_NOTARIZE === '1';
-
 module.exports = {
   appId: 'com.playback.app',
   productName: 'Playback',
@@ -36,9 +35,9 @@ module.exports = {
     entitlements: 'entitlements.mac.plist',
     entitlementsInherit: 'entitlements.mac.inherit.plist',
     gatekeeperAssess: false,
-    identity: 'Fabian Weber (2GPXPUFF8U)',
-    icon: 'src/assets/logo.icns',
-    notarize: false,
+    sign: false,
+    // identity: 'Fabian Weber (2GPXPUFF8U)',
+    icon: 'src/assets/logo.icns'
   },
   dmg: {
     sign: false
@@ -63,30 +62,14 @@ module.exports = {
     }
   ],
   afterSign: async (ctx) => {
-    
-    const appPath = path.join(ctx.appOutDir, 'Playback.app');
-    const binDir = path.join(appPath, 'Contents', 'Resources', 'bin');
-    if (fs.existsSync(binDir)) {
-      const binFiles = fs.readdirSync(binDir);
-      for (const file of binFiles) {
-        const binPath = path.join(binDir, file);
-        if (fs.statSync(binPath).isFile()) {
-          console.log(`🔏 signing binary: ${binPath}`);
-          execSync(`codesign --force --timestamp --options runtime --entitlements entitlements.mac.inherit.plist --sign "Developer ID Application: Fabian Weber (2GPXPUFF8U)" "${binPath}"`);
-        }
-      }
-    }
-
-    // 2. re-sign entire app bundle (VERY IMPORTANT)
-    console.log(`🔏 re-signing full app bundle: ${appPath}`);
-    execSync(`codesign --deep --force --timestamp --options runtime --entitlements entitlements.mac.plist --sign "Developer ID Application: Fabian Weber (2GPXPUFF8U)" "${appPath}"`);
-
     if (!shouldNotarize) {
       console.log('🛑 skipping notarization bc ENABLE_NOTARIZE != 1');
       return;
     }
     
+    const appPath = path.join(ctx.appOutDir, 'Playback.app');
     const appZipPath = path.join(ctx.appOutDir, 'Playback.zip');
+
     console.log(`📦 zipping app for notarization...`);
     execSync(`ditto -c -k --sequesterRsrc --keepParent "${appPath}" "${appZipPath}"`);
 
@@ -96,6 +79,6 @@ module.exports = {
       `,
       { stdio: 'inherit' }
     );
- 
+   console.log('✅ notarization complete!');
   },
 };

@@ -3,12 +3,16 @@
  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <!-- no app sandbox -->
   <key>com.apple.security.app-sandbox</key>
   <false/>
 
-  <!-- allow outgoing network connections (default true, but explicit helps) -->
   <key>com.apple.security.network.client</key>
+  <true/>
+
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
   <true/>
 </dict>
 </plist>
