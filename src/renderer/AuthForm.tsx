@@ -69,14 +69,14 @@ const AuthForm: React.FC = () => {
   
   return (
     <div className="splash-container">
-      <div className="bg-gray-50 shadow-md rounded-lg px-10 py-8 w-full max-w-md">
+      <div className="bg-gray-50 shadow-md rounded-lg px-6 py-6 w-full max-w-md relative">
         <div className="flex justify-center">
-          <img src={logo} height={50} width={50} alt="Playback Logo" className="h-12" />
+          <img src={logo} height={48} width={48} alt="Playback Logo" className="h-12" />
         </div>
-        <h2 className="text-2xl font-semibold text-gray-700 text-center mt-4">
+        <h2 className="text-xl font-semibold text-gray-700 text-center mt-4">
           {isSignUp ? 'Sign Up' : 'Sign In'}
         </h2>
-        <form className="mt-6" onSubmit={handleSubmit}>
+        <form className="mt-4" onSubmit={handleSubmit}>
           <div className="mb-4">
             <label className="block text-gray-600 text-sm font-medium">Email</label>
             <input
@@ -87,11 +87,10 @@ const AuthForm: React.FC = () => {
                 setEmail(e.target.value);
               }}
               placeholder="Enter email"
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
               required
             />
           </div>
-
           <div className="mb-4">
             <label className="block text-gray-600 text-sm font-medium">Password</label>
             <input
@@ -99,7 +98,7 @@ const AuthForm: React.FC = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter password"
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
               required
             />
           </div>
@@ -112,12 +111,12 @@ const AuthForm: React.FC = () => {
                 value={confirmationCode}
                 onChange={(e) => setConfirmationCode(e.target.value)}
                 placeholder="Enter confirmation code"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                 required
               />
               <button
                 type="submit"
-                className="w-full py-2 px-4 bg-primary text-white rounded-md font-semibold hover:bg-primary-dark mt-4"
+                className="w-full mt-3 button-main"
               >
                 Confirm Sign Up
               </button>
@@ -126,14 +125,15 @@ const AuthForm: React.FC = () => {
 
           <button
             type="submit"
-            className="w-full py-2 px-4 bg-primary text-white rounded-md font-semibold hover:bg-primary-dark transition-colors"
+            className="w-full mt-2 button-main"
           >
             {isSignUp ? 'Sign Up' : 'Sign In'}
           </button>
+
           <button
-            type="submit"
+            type="button"
             onClick={() => setIsSignUp(!isSignUp)}
-            className="w-full py-2 px-4 mt-2 text-primary hover:text-primary-dark hover:underline font-semibold text-center"
+            className="w-full py-2 text-primary hover:text-primary-dark hover:underline font-semibold text-center mt-2"
           >
             {isSignUp ? 'Switch to Sign In' : 'Switch to Sign Up'}
           </button>
@@ -143,6 +143,7 @@ const AuthForm: React.FC = () => {
         )}
       </div>
     </div>
+
   );
 };
 

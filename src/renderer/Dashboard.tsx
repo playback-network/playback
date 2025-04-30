@@ -36,17 +36,17 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="splash-container flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="bg-white shadow-lg rounded-lg w-full max-w-md p-8 h-96 flex flex-col items-center justify-center">
+    <div className="splash-container">
+      <div className="bg-white shadow-lg rounded-lg w-full max-w-md p-8 h-76 flex flex-col items-center justify-center relative">
         <button 
-          className="button-main logout-button absolute top-4 right-4" 
+          className="button-main logout-button" 
           onClick={handleLogout}
         >
           Logout
         </button>
         <div className="text-center">
-          <h1 className="text-5xl font-bold text-gray-700 mb-4">Your points</h1>
-          <p className="text-8xl font-extrabold text-primary">{points}</p>
+          <h1 className="text-2xl font-bold text-gray-700 mb-4">Your points</h1>
+          <p className="text-6xl font-extrabold text-primary">{points}</p>
         </div>
       </div>
     </div>

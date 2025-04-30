@@ -1,8 +1,4 @@
-process.env.NODE_OPTIONS = '--max-old-space-size=4096';
-process.env.ELECTRON_DEFAULT_MAX_CODE_CACHE_SIZE_MB = '1024';
-
-
-import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from 'electron';
+import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, globalShortcut } from 'electron';
 import path from 'node:path';
 import { initializeDatabase } from '../db/db';
 import { performOCRAndRedact } from '../services/ocr_service'; // Corrected import path
@@ -18,15 +14,17 @@ import { log } from '../services/logger';
 import { uploadAppLogs } from '../db/db_s3_utils';
 import { checkForUpdates } from './updater';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
+
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
-
 
 async function shutdown() {
   if (isQuitting) return;
   isQuitting = true;
   log('app:shutdown:start');
+  globalShortcut.unregisterAll();
 
   try {
     await stopUploadLoop();
@@ -43,28 +41,36 @@ async function shutdown() {
 function createWindow() {
   const isProd = app.isPackaged;
   const iconPath = isProd
-    ? path.join(process.resourcesPath, 'assets', 'icon.icns')
-    : path.join(fileURLToPath(new URL('.', import.meta.url)), '../assets/icon.png');
+    ? path.join(process.resourcesPath, 'assets', 'PlaybackIcon.icns')
+    : path.join(fileURLToPath(new URL('.', import.meta.url)), '../assets/logo.png');
   console.log('iconPath', iconPath);
 
   const preloadPath = isProd
   ? path.join(process.resourcesPath, 'preload', 'index.js')
   : path.join(__dirname, '../preload/index.js');
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 360,
+    height: 440,
+    frame: false,
+    resizable: false,
+    transparent: true,
+    show: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
     icon: iconPath,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       preload: preloadPath
     },
-    show: false
   });
 
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
     mainWindow.webContents.openDevTools();
+    mainWindow.once('ready-to-show', () => {
+      mainWindow?.show();
+    });
   } else {
     // This shouldn't run in dev mode
     const indexHtml = path.join(app.getAppPath(), 'dist', 'renderer', 'index.html');
@@ -74,10 +80,6 @@ function createWindow() {
 
   userEventEmitter.on('user-event', (event) => {
     handleUserEvent(event, mainWindow);
-  });
-
-  mainWindow.once('ready-to-show', () => {
-    mainWindow?.show();
   });
 
   // For debugging
@@ -92,18 +94,55 @@ function createWindow() {
       return false;
     }
   });
+
+  mainWindow.on('blur', () => {
+    mainWindow?.hide();
+  });
+}
+
+function toggleWindow(bounds) {
+  if (!mainWindow) return;
+
+  if (mainWindow.isVisible()) {
+    mainWindow.hide();
+  } else {
+    const { x, y, width } = bounds;
+    const windowBounds = mainWindow.getBounds();
+
+    const newX = Math.round(x + width / 2 - windowBounds.width / 2);
+    const newY = Math.round(y + 4); // adjust for status bar height
+
+    mainWindow.setBounds({
+      x: newX,
+      y: newY,
+      width: windowBounds.width,
+      height: windowBounds.height
+    });
+
+    mainWindow.show();
+    mainWindow.focus();
+  }
 }
 
 function createTray() {
   const isProd = app.isPackaged;
   const iconPath = isProd
-    ? path.join(process.resourcesPath, 'assets', 'logo.png')
-    : path.join(fileURLToPath(new URL('.', import.meta.url)), '../assets/logo.png');
+    ? path.join(process.resourcesPath, 'assets', 'PbTemplate.png')
+    : path.join(fileURLToPath(new URL('.', import.meta.url)), '../assets/PbTemplate.png');
     console.log('iconPath', iconPath);
-  const icon = nativeImage.createFromPath(iconPath);
-  tray = new Tray(icon);
+  
+  let icon = nativeImage.createFromPath(iconPath);
 
-  const contextMenu = Menu.buildFromTemplate([
+  if (icon.isEmpty()) {
+    console.error('[tray] tray icon failed to load');
+  }
+  icon.setTemplateImage(true); // **CRITICAL** for mac tray icons
+  icon = icon.resize({ width: 18, height: 18 }); // <- this helps with overflow
+
+  tray = new Tray(icon);
+  tray.setToolTip('Playback App');
+
+  tray.setContextMenu(Menu.buildFromTemplate([
     {
       label: 'Show App',
       click: () => mainWindow?.show(),
@@ -115,19 +154,82 @@ function createTray() {
         app.quit();
       },
     },
-  ]);
+  ])
+  );
 
-  tray.setToolTip('Playback App');
-  tray.setContextMenu(contextMenu);
-
-  tray.on('click', () => {
-    if (mainWindow?.isVisible()) {
-      mainWindow.hide();
-    } else {
-      mainWindow?.show();
-    }
+  tray.on('click', (_event, bounds) => {
+    toggleWindow(bounds);
   });
 }
+
+app.whenReady().then(async () => {
+  //system settings
+  if (app.isPackaged && process.platform === 'darwin') {
+    const exePath = app.getPath('exe');
+    console.log('[startup] setting login item path:', exePath);
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      openAsHidden: true,
+      path: exePath,
+    });
+  }
+
+  if (process.platform === 'darwin') {
+    app.dock.hide();
+  }  
+
+  // env
+  const envPath = app.isPackaged
+  ? path.join(process.resourcesPath, '.env.production') // correct for macOS
+  : path.resolve(__dirname, '../../.env');              // in dev
+
+  const result = dotenv.config({ path: envPath });
+  if (result.error) console.error('❌ dotenv error:', result.error);
+  else console.log('✅ env loaded from:', envPath);
+  
+  // init
+  getUserPool();
+  checkForUpdates();
+  log('app:start', { platform: process.platform, version: app.getVersion() });
+  
+  // initialize database
+  await initializeDatabase();
+  const sessionId = await initializeSession();
+  await setActiveSessionId(sessionId);
+  
+  //boot
+  createWindow();
+  createTray();
+  startMonitoring();
+
+  // global shortcut for mac
+  globalShortcut.register('CommandOrControl+P', () => {
+    if (!mainWindow) return;
+  
+    if (mainWindow.isVisible()) {
+      mainWindow.hide();
+    } else {
+      const bounds = tray?.getBounds(); // try to center under tray if available
+      if (bounds) {
+        toggleWindow(bounds);
+      } else {
+        // fallback: center on screen
+        const { width, height } = mainWindow.getBounds();
+        const { width: sw, height: sh } = require('electron').screen.getPrimaryDisplay().workAreaSize;
+        mainWindow.setBounds({
+          x: Math.round((sw - width) / 2),
+          y: Math.round((sh - height) / 2),
+          width,
+          height,
+        });
+        mainWindow.show();
+        mainWindow.focus();
+      }
+        }
+  });
+  
+  log('session:initialized', { sessionId });
+});
 
 ipcMain.handle('redact-image', async (event, imageData: Buffer) => {
   try {
@@ -142,28 +244,6 @@ ipcMain.handle('redact-image', async (event, imageData: Buffer) => {
 ipcMain.handle('db:getRedactedCount', async () => {
   const redactedCount = await getRedactedScreenshotCount();
   return redactedCount;
-});
-
-// Initialize the database when the app starts
-app.whenReady().then(async () => {
-  const envPath = app.isPackaged
-  ? path.join(process.resourcesPath, '.env.production') // correct for macOS
-  : path.resolve(__dirname, '../../.env');              // in dev
-
-  const result = dotenv.config({ path: envPath });
-  if (result.error) console.error('❌ dotenv error:', result.error);
-  else console.log('✅ env loaded from:', envPath);
-  getUserPool();
-  log('app:start', { platform: process.platform, version: app.getVersion() });
-  checkForUpdates();
-
-  await initializeDatabase();
-  const sessionId = await initializeSession();
-  await setActiveSessionId(sessionId);
-  createWindow();
-  createTray();
-  startMonitoring();
-  log('session:initialized', { sessionId });
 });
 
 app.on('activate', () => {

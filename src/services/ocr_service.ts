@@ -19,6 +19,8 @@ export async function performOCRAndRedact(imageBuffer: Buffer): Promise<Buffer> 
     maxBodyLength: Infinity,
   });
 
+  imageBuffer.fill(0);
+  
   if (!response.data || response.data.status !== "success" || !response.data.redactedImage) {
     throw new Error(`❌ Invalid response from OCR server: ${JSON.stringify(response.data)}`);
   }

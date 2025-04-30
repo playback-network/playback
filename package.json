@@ -14,8 +14,7 @@
     "rebuild": "electron-rebuild -f -w better-sqlite3 && electron-rebuild -f -w sharp",
     "postinstall": "electron-builder install-app-deps",
     "package:mac": "npm run build:all && electron-builder --mac --arm64 --config build.config.js",
-    "package:mac:test": "cross-env ENABLE_NOTARIZE=0 npm run package:mac",
-    "package:mac:sign": "cross-env ENABLE_NOTARIZE=0 npm run package:mac",
+    "package:mac:dev": "cross-env ENABLE_NOTARIZE=0 npm run package:mac",
     "package:mac:prod": "cross-env ENABLE_NOTARIZE=1 npm run package:mac",
     "package:dir": "npm run build:all && cross-env NODE_ENV=production electron-builder --dir",
     "publish:mac": "aws s3 cp release/Playback-*.dmg s3://playback-updater/updates/ && aws s3 cp release/latest-mac.yml s3://playback-updater/updates/ "

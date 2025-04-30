@@ -37,7 +37,8 @@ module.exports = {
     gatekeeperAssess: false,
     sign: false,
     // identity: 'Fabian Weber (2GPXPUFF8U)',
-    icon: 'src/assets/logo.icns'
+    icon: 'src/assets/PlaybackIcon.icns',
+    notarize: false,
   },
   dmg: {
     sign: false

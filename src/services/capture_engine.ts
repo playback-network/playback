@@ -61,7 +61,6 @@ async function handleEventScreenshots(
       const ts = new Date(frame.timestamp);
       const screenshotId = await insertScreenshot(img, null, ts);
       img.fill(0);
-      frame.img.fill(0);
       await recordEvent(eventType, eventDetails, screenshotId, screenshotId, ts);
     } else {
       const beforeImg = Buffer.from(pair[0].img);
