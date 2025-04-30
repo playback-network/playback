@@ -129,7 +129,7 @@ func drawRedactionBoxes(on imageData: Data, words: [(String, CGRect)], entities:
     let imageHeight = CGFloat(cgImage.height)
 
     let colorSpace = CGColorSpaceCreateDeviceRGB()
-    let cgContext = CGContext(
+    guard let ctx = CGContext(
         data: nil,
         width: Int(imageWidth),
         height: Int(imageHeight),
@@ -137,87 +137,96 @@ func drawRedactionBoxes(on imageData: Data, words: [(String, CGRect)], entities:
         bytesPerRow: 0,
         space: colorSpace,
         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-    )
-
-    guard let ctx = cgContext else {
+    ) else {
         print("❌ Failed to create CGContext")
         return nil
     }
 
     ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: imageWidth, height: imageHeight))
 
-    let redColor = CGColor(red: 1, green: 0, blue: 0, alpha: 1)
-    ctx.setFillColor(redColor)
-    ctx.setStrokeColor(redColor)
-    ctx.setLineWidth(2)
+    let nsContext = NSGraphicsContext(cgContext: ctx, flipped: false)
+    NSGraphicsContext.current = nsContext
 
-    //print("🛑 Redacting Entities:", entities)
-
-    var redactionCount = 0
+    let font = NSFont.systemFont(ofSize: 12, weight: .bold)
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.alignment = .center
 
     for (ocrText, bbox) in words {
-        let cleanedOcrText = ocrText.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        for (label, pattern) in Redactor.patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: []),
+               regex.firstMatch(in: ocrText, options: [], range: NSRange(ocrText.startIndex..., in: ocrText)) != nil {
 
-        for entity in entities {
-            let normalizedEntity = entity.lowercased().replacingOccurrences(of: "[^a-zA-Z0-9]", with: "", options: .regularExpression)
-            let normalizedOcrText = cleanedOcrText.replacingOccurrences(of: "[^a-zA-Z0-9]", with: "", options: .regularExpression)
+                // compute position
+                let x = bbox.origin.x * imageWidth
+                let y = bbox.origin.y * imageHeight
+                let width = bbox.width * imageWidth
+                let height = bbox.height * imageHeight
 
-            if normalizedOcrText.contains(normalizedEntity) {
-                // print("🛑 MATCH FOUND! Redacting:", entity, "inside", ocrText)
+                // sample surrounding area
+                let pad: CGFloat = 10
+                let sampleRect = CGRect(x: max(x - pad, 0), y: max(y - pad, 0),
+                                        width: min(width + 2*pad, imageWidth - x),
+                                        height: min(height + 2*pad, imageHeight - y))
 
-                // 🔹 Locate entity inside the OCR-detected text
-                if let range = ocrText.range(of: entity) {
-                    let startIndex = ocrText.distance(from: ocrText.startIndex, to: range.lowerBound)
-                    let endIndex = ocrText.distance(from: ocrText.startIndex, to: range.upperBound)
+                let cropped = cgImage.cropping(to: sampleRect)
+                let avgColor = averageColor(of: cropped) ?? NSColor.gray
 
-                    let relativeStartX = CGFloat(startIndex) / CGFloat(ocrText.count)
-                    let relativeEndX = CGFloat(endIndex) / CGFloat(ocrText.count)
+                // draw redaction box
+                let cgColor = avgColor.cgColor
+                ctx.setFillColor(cgColor)
+                ctx.fill(CGRect(x: x, y: y, width: width, height: height))
 
-                    // 🔥 Extract only the entity's bounding box
-                    let entityX = bbox.origin.x + (relativeStartX * bbox.width)
-                    let entityWidth = (relativeEndX - relativeStartX) * bbox.width
-                    let entityY = bbox.origin.y
-                    let entityHeight = bbox.height
+                // draw text
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .font: font,
+                    .foregroundColor: NSColor.white,
+                    .paragraphStyle: paragraph
+                ]
 
-                    // ✅ Preserve your `y` calculation
-                    let x = entityX * imageWidth
-                    let y = entityY * imageHeight
-                    let width = entityWidth * imageWidth
-                    let height = entityHeight * imageHeight
-
-                    // 🔹 Expand slightly to avoid clipping
-                    let paddingX: CGFloat = max(5, width * 0.1)
-                    let paddingY: CGFloat = max(5, height * 0.1)
-
-                    let rect = CGRect(x: x - paddingX / 2,
-                                      y: y - paddingY / 2,
-                                      width: width + paddingX,
-                                      height: height + paddingY)
-
-                    ctx.fill(rect) // 🔹 Fill the redaction box
-                    ctx.stroke(rect) // 🔹 Draw an outline
-
-                    // print("📌 Redaction #\(redactionCount): x=\(x), y=\(y), width=\(width), height=\(height)")
-                    redactionCount += 1
-                }
+                let text = "[REDACTED \(label.uppercased())]"
+                let attributed = NSAttributedString(string: text, attributes: attributes)
+                attributed.draw(in: CGRect(x: x, y: y + (height - 14) / 2, width: width, height: 14))
             }
         }
     }
 
-    if redactionCount == 0 {
-        print("❌ No bounding boxes were drawn! Check if the detected words match the redacted entities.")
-    }
-
-    guard let newCGImage = ctx.makeImage() else {
-        print("❌ Failed to create redacted CGImage")
-        return nil
-    }
-
+    guard let newCGImage = ctx.makeImage() else { return nil }
     let finalImage = NSBitmapImageRep(cgImage: newCGImage)
-
-    // ✅ Return the image as JPG data instead of saving it
     return finalImage.representation(using: .jpeg, properties: [.compressionFactor: 0.7])
 }
+
+func averageColor(of image: CGImage?) -> NSColor? {
+    guard let image = image else { return nil }
+
+    let width = image.width
+    let height = image.height
+    let data = UnsafeMutablePointer<UInt8>.allocate(capacity: 4 * width * height)
+
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    guard let ctx = CGContext(data: data, width: width, height: height,
+                              bitsPerComponent: 8, bytesPerRow: width * 4,
+                              space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+    else { return nil }
+
+    ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+    var rTotal = 0, gTotal = 0, bTotal = 0, count = 0
+    for i in stride(from: 0, to: width * height * 4, by: 4) {
+        rTotal += Int(data[i])
+        gTotal += Int(data[i+1])
+        bTotal += Int(data[i+2])
+        count += 1
+    }
+
+    data.deallocate()
+
+    guard count > 0 else { return nil }
+    return NSColor(calibratedRed: CGFloat(rTotal) / CGFloat(count) / 255,
+                   green: CGFloat(gTotal) / CGFloat(count) / 255,
+                   blue: CGFloat(bTotal) / CGFloat(count) / 255,
+                   alpha: 1.0)
+}
+
 
 func routes(_ app: Application) throws {
     app.routes.defaultMaxBodySize = "10mb"

@@ -108,7 +108,7 @@ export function handleUserEvent(event: any, win?: BrowserWindow) {
   
       const afterImg = Buffer.from(pair[1].img);
       const afterTs = new Date(pair[1].timestamp);
-      const beforeImg = scrollStartBuffer.img;
+      const beforeImg = Buffer.from(scrollStartBuffer.img);
       const beforeTs = new Date(scrollStartBuffer.timestamp);
       
       if (scrollStartBuffer?.img) scrollStartBuffer.img.fill(0);

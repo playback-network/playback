@@ -14,6 +14,7 @@ let ocrServer: ChildProcessWithoutNullStreams | null = null;
 let shuttingDown = false;
 let buffer = '';
 let uploadLoopActive = true;
+let uploadLoopPromise: Promise<void> | null = null;
 
 export function startBackgroundProcesses() {
   // ⚡ start Swift OCR server
@@ -69,21 +70,26 @@ export function stopBackgroundProcesses() {
 }
 
 export function startUploadLoop(intervalMs = 5000) {
-  const loop = async () => {
-    if (!uploadLoopActive) return;
-    try {
-      await uploadRedactedScreenshotsAndEvents();
-    } catch (err) {
-      console.error("📤 S3 upload failed:", err);
-    } finally {
-      if (uploadLoopActive) setTimeout(loop, intervalMs);
+  if (uploadLoopPromise) return;
+  uploadLoopActive = true;
+  uploadLoopPromise = (async () => {
+    while (uploadLoopActive) {
+      try {
+        await uploadRedactedScreenshotsAndEvents();
+      } catch (err) {
+        console.error("📤 S3 upload failed:", err);
+      }
+      await new Promise((r) => setTimeout(r, intervalMs));
     }
-  };
-  loop();
+  })();
 }
 
-export function stopUploadLoop() {
+export async function stopUploadLoop() {
   uploadLoopActive = false;
+  if (uploadLoopPromise) {
+    await uploadLoopPromise;
+    uploadLoopPromise = null;
+  }
 }
 
 function pollAndRedactScreenshots() {

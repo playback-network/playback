@@ -14,7 +14,6 @@ import { log } from '../services/logger';
 import { uploadAppLogs } from '../db/db_s3_utils';
 import { checkForUpdates } from './updater';
 import { fileURLToPath } from 'url';
-import fs from 'fs';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
