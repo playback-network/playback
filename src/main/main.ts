@@ -260,13 +260,12 @@ app.on('before-quit', async (event) => {
   isQuitting = true;
   log('app:shutdown:start'); 
   try {
-    await uploadAppLogs();
-    log('app:logs:uploaded');
+    await shutdown();
+    log('app:shutdown:complete');
   } catch (err) {
-    log('upload:fail', { error: err.message });
+    log('shutdown:error', { error: err.message });
   } finally {
-    shutdown(); 
-    app.exit();
+    app.exit(0);
   }
 });
 process.once('exit', shutdown);

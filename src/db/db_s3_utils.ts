@@ -107,14 +107,17 @@ export async function uploadAppLogs() {
         const body = fs.createReadStream(filePath);
         const s3Key = `${cognitoIdentityId}/logs/${file}`;
   
+        try {
         await s3.upload({
           Bucket: getBucket(),
           Key: s3Key,
           Body: body,
           ACL: 'private',
         }).promise();
-  
         console.log(`📤 Uploaded log: ${s3Key}`);
+        } finally {
+          body.close();
+        }
       }
     } catch (err) {
       console.error('🚨 Log upload failed:', err);
