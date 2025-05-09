@@ -8,60 +8,21 @@ const AuthForm: React.FC = () => {
   const isDev = process.env.NODE_ENV === 'development';
 
   const [password, setPassword] = useState(isDev ? 'ThisIsMyTest1234!' : '');
-  const [email, setEmail] = useState(isDev ? 'weberfabian1@gmx.de' : '');
-  const [confirmationCode, setConfirmationCode] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
   const [username, setUsername] = useState<string>(isDev ? 'weberfabian1@gmx.de' : '');
-  const [needsConfirmation, setNeedsConfirmation] = useState(false); // Flag for email verification
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { login } = useAuth();
-
-  // Handle sign-up
-  const handleSignUp = () => {
-    window.electron.auth.signUp(username, password, email)
-      .then(result => {
-        setMessage(result.message);
-        setNeedsConfirmation(true);  // Expecting confirmation after sign-up
-      })
-      .catch(err => {
-        setMessage(`Error signing up: ${err}`);
-      });
-  };
-
-  // Handle confirming the sign-up
-  const handleConfirmSignUp = () => {
-    window.electron.auth.confirmSignUp(username, confirmationCode)
-      .then(result => {
-        setMessage('User confirmed successfully!');
-        setNeedsConfirmation(false); // Confirmation is done, reset flag
-      })
-      .catch(err => {
-        setMessage(`Error confirming sign-up: ${err}`);
-      });
-  };
 
   const handleSignIn = async () => {
     setIsSubmitting(true);
     try {
       const { success, message } = await login(username, password);
       setMessage(success ? 'Login successful' : message);
-    } catch (err) {
+    } catch {
       setMessage('Login failed');
     } finally {
       setIsSubmitting(false);
-    }
-  };
-  
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault(); // Prevent default form submission
-    if (needsConfirmation) {
-      handleConfirmSignUp();
-    } else if (isSignUp) {
-      handleSignUp();
-    } else {
-      handleSignIn();
     }
   };
 
@@ -73,19 +34,15 @@ const AuthForm: React.FC = () => {
         <div className="flex justify-center">
           <img src={logo} height={48} width={48} alt="Playback Logo" className="h-12" />
         </div>
-        <h2 className="text-xl font-semibold text-gray-700 text-center mt-4">
-          {isSignUp ? 'Sign Up' : 'Sign In'}
-        </h2>
-        <form className="mt-4" onSubmit={handleSubmit}>
+        <h2 className="text-xl font-semibold text-gray-700 text-center mt-4">Sign In</h2>
+
+        <form className="mt-4">
           <div className="mb-4">
             <label className="block text-gray-600 text-sm font-medium">Email</label>
             <input
               type="text"
               value={username}
-              onChange={(e) => {
-                setUsername(e.target.value);
-                setEmail(e.target.value);
-              }}
+              onChange={(e) => setUsername(e.target.value)}
               placeholder="Enter email"
               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
               required
@@ -103,47 +60,26 @@ const AuthForm: React.FC = () => {
             />
           </div>
 
-          {needsConfirmation && (
-            <div className="mb-4">
-              <label className="block text-gray-600 text-sm font-medium">Confirmation Code</label>
-              <input
-                type="text"
-                value={confirmationCode}
-                onChange={(e) => setConfirmationCode(e.target.value)}
-                placeholder="Enter confirmation code"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                required
-              />
-              <button
-                type="submit"
-                className="w-full mt-3 button-main"
-              >
-                Confirm Sign Up
-              </button>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            className="w-full mt-2 button-main"
-          >
-            {isSignUp ? 'Sign Up' : 'Sign In'}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="w-full py-2 text-primary hover:text-primary-dark hover:underline font-semibold text-center mt-2"
-          >
-            {isSignUp ? 'Switch to Sign In' : 'Switch to Sign Up'}
+          <button onClick={handleSignIn} type="submit" className="w-full mt-2 button-main">
+            Sign In
           </button>
         </form>
-        {message && (
-          <p className="text-red-500 mt-4 text-center">{message}</p>
-        )}
+
+        <p className="text-sm text-center mt-4 text-gray-600">
+          Don’t have an account?{' '}
+          <a
+            href="https://yourdomain.com/signup"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline font-semibold"
+          >
+            Sign up here
+          </a>
+        </p>
+
+        {message && <p className="text-red-500 mt-4 text-center">{message}</p>}
       </div>
     </div>
-
   );
 };
 

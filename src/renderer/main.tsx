@@ -6,6 +6,7 @@ import { AuthProvider } from './AuthContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Missing #root element');
+console.log("🧪 window.electron?", window.electron);
 
 const root = createRoot(rootElement);
 

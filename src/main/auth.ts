@@ -7,8 +7,11 @@ import { startBackgroundProcesses } from '../services/process_manager';
 import { stopContinuousCapture } from '../services/capture_engine';
 
 let userPool: CognitoUserPool | null = null;
+console.log('[auth] registering ipcMain handlers');
 
 export function getUserPool() {
+  if (userPool) return userPool;
+
   const { USER_POOL_ID, CLIENT_ID } = process.env;
   if (!USER_POOL_ID || !CLIENT_ID) throw new Error('Missing USER_POOL_ID or CLIENT_ID');
 
@@ -20,32 +23,9 @@ export function getUserPool() {
   return userPool;
 }
 
-ipcMain.handle('auth:signUp', async (_event, { username, password, email }) => {
-  return new Promise((resolve, reject) => {
-    const attributes = [new CognitoUserAttribute({ Name: 'email', Value: email })];
-    userPool.signUp(username, password, attributes, null, (err, result) => {
-      if (err) return reject(err.message);
-      try {
-        resolve({ message: 'User registered successfully', username: result?.user.getUsername() });
-      } catch (e) {
-        reject(`Sign up succeeded, but init failed: ${e.message}`);
-      }
-    });
-  });
-});
-
-ipcMain.handle('auth:confirmSignUp', async (_event, { username, code }) => {
-  const cognitoUser = new CognitoUser({ Username: username, Pool: userPool });
-  return new Promise((resolve, reject) => {
-    cognitoUser.confirmRegistration(code, true, (err, result) => {
-      if (err) return reject(err.message);
-      resolve({ message: 'User confirmed', result });
-    });
-  });
-});
-
 ipcMain.handle('auth:signIn', async (_event, { username, password }) => {
-  const cognitoUser = new CognitoUser({ Username: username, Pool: userPool });
+  const pool = getUserPool();  // 🧠 this was missing before
+  const cognitoUser = new CognitoUser({ Username: username, Pool: pool });
   const authDetails = new AuthenticationDetails({ Username: username, Password: password });
 
   return new Promise((resolve, reject) => {

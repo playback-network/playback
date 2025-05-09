@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from 'electron';
-
 // Define API object to expose to the renderer
 contextBridge.exposeInMainWorld('electron', {
   // Core IPC functions
@@ -21,17 +20,11 @@ contextBridge.exposeInMainWorld('electron', {
   
   // Auth related functions
   auth: {
-    signUp: (username: string, password: string, email: string) => 
-      ipcRenderer.invoke('auth:signUp', { username, password, email }),
-    
     signIn: (username: string, password: string) => 
       ipcRenderer.invoke('auth:signIn', { username, password }),
     
     logOut: () => 
       ipcRenderer.invoke('auth:logout'),
-    
-    confirmSignUp: (username: string, code: string) => 
-      ipcRenderer.invoke('auth:confirmSignUp', { username, code }),
     
     getStatus: () => 
       ipcRenderer.invoke('auth:getStatus')

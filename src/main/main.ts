@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, globalShortcut } from 'electron';
+import { systemPreferences, shell, app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, globalShortcut } from 'electron';
 import path from 'node:path';
 import { initializeDatabase } from '../db/db';
 import { performOCRAndRedact } from '../services/ocr_service'; // Corrected import path
@@ -37,17 +37,18 @@ async function shutdown() {
   }
 }
 
-function createWindow() {
+function createWindow(bounds: Electron.Rectangle) {
   const isProd = app.isPackaged;
   const iconPath = isProd
-    ? path.join(process.resourcesPath, 'assets', 'PlaybackIcon.icns')
+    ? path.join(process.resourcesPath, 'icon.icns')
     : path.join(fileURLToPath(new URL('.', import.meta.url)), '../assets/logo.png');
   console.log('iconPath', iconPath);
-
+  
   const preloadPath = isProd
   ? path.join(process.resourcesPath, 'preload', 'index.js')
   : path.join(__dirname, '../preload/index.js');
-  mainWindow = new BrowserWindow({
+  console.log('[main] preload path:', preloadPath);
+  const win = new BrowserWindow({
     width: 360,
     height: 440,
     frame: false,
@@ -64,39 +65,48 @@ function createWindow() {
     },
   });
 
+  const { x, y, width } = bounds;
+  const newX = Math.round(x + width / 2 - 180); // 180 = win.width / 2
+  const newY = Math.round(y + 4);
+  
+  win.setBounds({
+    x: newX,
+    y: newY,
+    width: 360,
+    height: 440
+  });
+
   if (process.env.ELECTRON_RENDERER_URL) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
-    mainWindow.webContents.openDevTools();
-    mainWindow.once('ready-to-show', () => {
-      mainWindow?.show();
+    win.loadURL(process.env.ELECTRON_RENDERER_URL);
+    win.webContents.openDevTools();
+    win.once('ready-to-show', () => {
+      win?.show();
+      win.focus();
     });
   } else {
     // This shouldn't run in dev mode
     const indexHtml = path.join(app.getAppPath(), 'dist', 'renderer', 'index.html');
     console.log('Loading from:', indexHtml);
-    mainWindow.loadFile(indexHtml);
+    win.loadFile(indexHtml);
   }
 
   userEventEmitter.on('user-event', (event) => {
-    handleUserEvent(event, mainWindow);
+    handleUserEvent(event, win);
   });
 
-  // For debugging
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-    console.error('Failed to load:', errorCode, errorDescription);
+  win.on('blur', () => {
+    if (!win.webContents.isDevToolsOpened()) {
+      win.close();
+    }
   });
-
-  mainWindow.on('close', (event) => {
-    if (!isQuitting) {
-      event.preventDefault();
-      mainWindow?.hide();
-      return false;
+  
+  win.on('close', (event) => {
+    if (mainWindow === win) {
+      mainWindow = null;
     }
   });
 
-  mainWindow.on('blur', () => {
-    mainWindow?.hide();
-  });
+  return win;
 }
 
 function toggleWindow(bounds) {
@@ -157,11 +167,36 @@ function createTray() {
   );
 
   tray.on('click', (_event, bounds) => {
-    toggleWindow(bounds);
+    if (mainWindow) mainWindow.close();
+    mainWindow = createWindow(bounds);
   });
 }
 
+async function requestAppPermissionsOnce() {
+  const results: Record<string, boolean> = {};
+
+  results.microphone =
+    systemPreferences.getMediaAccessStatus('microphone') === 'granted'
+      || await systemPreferences.askForMediaAccess('microphone');
+
+  results.screen =
+    systemPreferences.getMediaAccessStatus('screen') === 'granted';
+
+  if (!results.screen) {
+    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+  }
+
+  results.accessibility = systemPreferences.isTrustedAccessibilityClient(false);
+  if (!results.accessibility) {
+    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
+  }
+
+  return results;
+}
+
 app.whenReady().then(async () => {
+  const perms = await requestAppPermissionsOnce();
+
   //system settings
   if (app.isPackaged && process.platform === 'darwin') {
     const exePath = app.getPath('exe');
@@ -197,34 +232,18 @@ app.whenReady().then(async () => {
   await setActiveSessionId(sessionId);
   
   //boot
-  createWindow();
   createTray();
   startMonitoring();
 
   // global shortcut for mac
   globalShortcut.register('CommandOrControl+P', () => {
-    if (!mainWindow) return;
-  
-    if (mainWindow.isVisible()) {
-      mainWindow.hide();
-    } else {
-      const bounds = tray?.getBounds(); // try to center under tray if available
-      if (bounds) {
-        toggleWindow(bounds);
-      } else {
-        // fallback: center on screen
-        const { width, height } = mainWindow.getBounds();
-        const { width: sw, height: sh } = require('electron').screen.getPrimaryDisplay().workAreaSize;
-        mainWindow.setBounds({
-          x: Math.round((sw - width) / 2),
-          y: Math.round((sh - height) / 2),
-          width,
-          height,
-        });
-        mainWindow.show();
-        mainWindow.focus();
-      }
-        }
+    if (mainWindow) {
+      mainWindow.close();
+      return;
+    }
+    const bounds = tray?.getBounds()
+      ?? { x: 100, y: 100, width: 100, height: 100 };
+    mainWindow = createWindow(bounds);
   });
   
   log('session:initialized', { sessionId });
@@ -247,11 +266,9 @@ ipcMain.handle('db:getRedactedCount', async () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  } else {
-    mainWindow?.show();
+    if (tray) mainWindow = createWindow(tray.getBounds());
   }
-}); 
+});
 
 app.on('before-quit', async (event) => {
   if (isQuitting) return;

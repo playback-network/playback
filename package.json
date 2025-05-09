@@ -12,6 +12,7 @@
     "copy:swift": "mkdir -p dist/bin && cp src/services/.build/release/OCRServer dist/bin/ && cp src/services/.build/release/Eventlogger dist/bin/",
     "postbuild": "npm run build:ocr && npm run build:worker && npm run copy:swift && npm run copy:assets",
     "rebuild": "electron-rebuild -f -w better-sqlite3 && electron-rebuild -f -w sharp",
+    "app": "./release/mac-arm64/Playback.app/Contents/MacOS/Playback",
     "postinstall": "electron-builder install-app-deps",
     "package:mac": "npm run build:all && electron-builder --mac --arm64 --config build.config.js",
     "package:mac:dev": "cross-env ENABLE_NOTARIZE=0 npm run package:mac",

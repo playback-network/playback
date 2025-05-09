@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
 /* --- layout containers --- */
 .splash-container {
   @apply flex justify-center items-center bg-cover bg-center w-full h-full p-4 overflow-hidden rounded-lg;

@@ -27,7 +27,8 @@ module.exports = {
   ],
   asarUnpack: [
     '**/better-sqlite3/**',
-    '**/pidusage/**'
+    '**/pidusage/**',
+    '**/preload/**'
   ],
   mac: {
     category: 'public.app-category.productivity',
@@ -41,7 +42,7 @@ module.exports = {
     notarize: false,
   },
   dmg: {
-    sign: false
+    sign: true
   },
   extraResources: [
     {
@@ -51,6 +52,13 @@ module.exports = {
     {
       from: 'dist/bin',
       to: 'bin'
+    },
+    { from: 'dist/assets',
+       to: 'assets' 
+    },
+    {
+      from: 'dist/preload',
+      to: 'preload'
     }
   ],
   publish: [
@@ -67,19 +75,15 @@ module.exports = {
       console.log('🛑 skipping notarization bc ENABLE_NOTARIZE != 1');
       return;
     }
-    
-    const appPath = path.join(ctx.appOutDir, 'Playback.app');
-    const appZipPath = path.join(ctx.appOutDir, 'Playback.zip');
-
-    console.log(`📦 zipping app for notarization...`);
-    execSync(`ditto -c -k --sequesterRsrc --keepParent "${appPath}" "${appZipPath}"`);
-
-    console.log('📦 submitting zip to notarization (this may take a few minutes)...');
+    const dmgPath = path.join(__dirname, 'release', 'Playback-1.0.0-arm64.dmg');
+    console.log(`📡 submitting .dmg to notarization...`);
     execSync(
-      `xcrun notarytool submit "${appZipPath}" --apple-id "${process.env.APPLE_ID}" --password "${process.env.APPLE_APP_SPECIFIC_PASSWORD}" --team-id "${process.env.APPLE_TEAM_ID}" --wait 
-      `,
+      `xcrun notarytool submit "${dmgPath}" --apple-id "${process.env.APPLE_ID}" --password "${process.env.APPLE_APP_SPECIFIC_PASSWORD}" --team-id "${process.env.APPLE_TEAM_ID}" --wait --force`,
       { stdio: 'inherit' }
     );
-   console.log('✅ notarization complete!');
+
+    console.log('✅ notarization complete! Stapling...');
+    execSync(`xcrun stapler staple "${dmgPath}"`, { stdio: 'inherit' });
+    console.log('✅ stapling complete!');
   },
 };

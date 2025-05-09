@@ -22,7 +22,7 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'src/preload/index.ts')
         },
-        external: ['better_sqlite3', 'aws-sdk']
+        external: ['better_sqlite3', 'electron', 'aws-sdk']
       }
     }
   },
