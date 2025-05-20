@@ -6,15 +6,94 @@ import { getPendingScreenshots, setScreenshotQueuedForOCR } from '../db/db_redac
 import { getOCRQueueLength, queueForOCR } from './ocr_queue';
 import { uploadRedactedScreenshotsAndEvents } from '../db/db_s3_utils';
 import { app } from 'electron';
+import { execSync } from 'node:child_process';
 
 export const userEventEmitter = new EventEmitter();
 
-let eventCapture: ReturnType<typeof spawn> | null = null;
+let eventCapture: ChildProcessWithoutNullStreams | null = null;
 let ocrServer: ChildProcessWithoutNullStreams | null = null;
+let stopOcrServer: (() => void) | null = null;
+let stopEventLogger: (() => void) | null = null;
+
 let shuttingDown = false;
 let buffer = '';
 let uploadLoopActive = true;
 let uploadLoopPromise: Promise<void> | null = null;
+
+const MAX_RETRIES = 5;
+const RETRY_BASE_DELAY = 2000;
+
+function killProcessOnPort(port) {
+  try {
+    const output = execSync(`lsof -i tcp:${port} -t`).toString().trim();
+    if (output) {
+      const pids = output.split('\n');
+      for (const pid of pids) {
+        try {
+          process.kill(Number(pid), 'SIGTERM');
+          console.log(`☠️ Killed process on port ${port} (pid ${pid})`);
+        } catch (e) {
+          console.warn(`⚠️ Failed to kill pid ${pid}:`, e);
+        }
+      }
+    }
+  } catch {
+    // No process using port or lsof not available
+    console.log(`⚠️ No process using port ${port}`);
+  }
+}
+
+function startProcessWithRetry(binPath, args, stdio, name, onData, onError, maxRetries = MAX_RETRIES) {
+  let retries = 0;
+  let proc = null;
+
+  const start = () => {
+    if (shuttingDown) return;
+    console.log(`🚀 Starting ${name} (attempt ${retries + 1})`);
+    proc = spawn(binPath, args, { stdio });
+
+    if (onData && proc.stdout) {
+      proc.stdout.on('data', onData);
+    }
+    if (onError && proc.stderr) {
+      proc.stderr.on('data', onError);
+    }
+
+    proc.on('exit', (code, signal) => {
+      if (shuttingDown) return;
+      console.error(`❌ ${name} exited with code ${code}, signal ${signal}`);
+      if (retries < maxRetries) {
+        retries += 1;
+        const delay = RETRY_BASE_DELAY * Math.pow(2, retries - 1); // exponential backoff
+        console.log(`🔁 Restarting ${name} in ${delay}ms (retry ${retries}/${maxRetries})`);
+        setTimeout(start, delay);
+      } else {
+        console.error(`🛑 ${name} failed too many times, not retrying.`);
+      }
+    });
+
+    proc.on('error', (err) => {
+      if (shuttingDown) return;
+      console.error(`❌ Failed to spawn ${name}:`, err);
+      if (retries < maxRetries) {
+        retries += 1;
+        const delay = RETRY_BASE_DELAY * Math.pow(2, retries - 1);
+        console.log(`🔁 Retrying ${name} in ${delay}ms (retry ${retries}/${maxRetries})`);
+        setTimeout(start, delay);
+      } else {
+        console.error(`🛑 ${name} spawn failed too many times, not retrying.`);
+      }
+    });
+  };
+
+  start();
+  return () => {
+    if (proc) {
+      proc.kill('SIGTERM');
+      proc = null;
+    }
+  };
+}
 
 export function startBackgroundProcesses() {
   // ⚡ start Swift OCR server
@@ -22,31 +101,42 @@ export function startBackgroundProcesses() {
   const binDir = isProd
   ? path.join(process.resourcesPath, 'bin')
   : path.join(__dirname, '../bin');
+  // killProcessOnPort(8080); // 🔪 kill leftover OCRServer if any
+  killProcessOnPort(8080);
 
+  // OCR Server
   const ocrBin = path.join(binDir, 'OCRServer');
+  stopOcrServer = startProcessWithRetry(
+    ocrBin,
+    [],
+    ['inherit', 'pipe', 'pipe'],
+    'OCRServer',
+    (data) => console.log(`[OCRServer] ${data.toString().trim()}`),
+    (data) => console.error(`[OCRServer ERROR] ${data.toString().trim()}`)
+  );
+  // EventLogger
   const eventBin = path.join(binDir, 'Eventlogger');
-
-  ocrServer = spawn(ocrBin, [], {
-    stdio: 'inherit',
-  });
-  console.log('🚀 OCR server started');
-
-  eventCapture = spawn(eventBin, [], { stdio: ['ignore', 'pipe', 'inherit'] });
-
-  eventCapture.stdout?.on('data', (data) => {
-    buffer += data.toString();
-
-    let lines = buffer.split('\n');
-    buffer = lines.pop()!;
-    for (const line of lines) {
-      try {
-        const parsed = JSON.parse(line);
-        userEventEmitter.emit('user-event', parsed);
-      } catch (e) {
-        console.error('❌ Failed to parse Swift event:', line);
+  let eventBuffer = '';
+  stopEventLogger = startProcessWithRetry(
+    eventBin,
+    [],
+    ['ignore', 'pipe', 'inherit'],
+    'Eventlogger',
+    (data) => {
+      eventBuffer += data.toString();
+      let lines = eventBuffer.split('\n');
+      eventBuffer = lines.pop()!;
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line);
+          userEventEmitter.emit('user-event', parsed);
+        } catch (e) {
+          console.error('❌ Failed to parse Swift event:', line);
+        }
       }
-    }
-  });
+    },
+    (data) => console.error(`[Eventlogger ERROR] ${data.toString().trim()}`)
+  );
 
   startContinuousCapture();
   pollAndRedactScreenshots();
@@ -57,13 +147,13 @@ export function stopBackgroundProcesses() {
   if (shuttingDown) return;
   shuttingDown = true;
 
-  if (ocrServer) {
-    ocrServer.kill('SIGTERM');
+  if (stopOcrServer) {
+    stopOcrServer();
     ocrServer = null;
     console.log('🛑 OCR server stopped');
   }
-  if (eventCapture) {
-    eventCapture.kill('SIGTERM');
+  if (stopEventLogger) {
+    stopEventLogger();
     eventCapture = null;
     console.log('🛑 Event capture stopped');
   }
@@ -109,9 +199,8 @@ function pollAndRedactScreenshots() {
 
       for (const shot of unredacted) {
         await setScreenshotQueuedForOCR(shot.id);
-        
         queueForOCR(shot.id, shot.image);
-      }
+        }
     } catch (err) {
       console.error('❌ Error fetching unredacted screenshots:', err);
     }

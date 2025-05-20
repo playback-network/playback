@@ -49,6 +49,8 @@ export async function insertScreenshot(imageBuffer: Buffer, p_hash: string, time
   } catch (error) {
     console.error('Error inserting screenshot:', error);
     throw error;
+  } finally {
+    imageBuffer.fill(0);
   }
 }
 

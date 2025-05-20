@@ -1,5 +1,6 @@
 const path = require('path');
-const fs = require('fs')
+const fs = require('fs');
+const glob = require('glob');
 const { execSync } = require('child_process');
 require('dotenv').config();
 
@@ -59,6 +60,10 @@ module.exports = {
     {
       from: 'dist/preload',
       to: 'preload'
+    },
+    {
+      from: 'dist/workers', 
+      to: 'workers'
     }
   ],
   publish: [
@@ -75,7 +80,8 @@ module.exports = {
       console.log('🛑 skipping notarization bc ENABLE_NOTARIZE != 1');
       return;
     }
-    const dmgPath = path.join(__dirname, 'release', 'Playback-1.0.0-arm64.dmg');
+    const dmgGlob = path.join(__dirname, 'release', 'Playback-0.0.1-arm64.dmg');
+    const dmgPath = glob.sync(dmgGlob);
     console.log(`📡 submitting .dmg to notarization...`);
     execSync(
       `xcrun notarytool submit "${dmgPath}" --apple-id "${process.env.APPLE_ID}" --password "${process.env.APPLE_APP_SPECIFIC_PASSWORD}" --team-id "${process.env.APPLE_TEAM_ID}" --wait --force`,

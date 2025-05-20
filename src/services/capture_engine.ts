@@ -3,39 +3,43 @@ import { insertScreenshot, recordEvent } from '../db/db_utils';
 import { BrowserWindow } from 'electron';
 
 const MAX_QUEUE_SIZE = 10;
-const captureIntervalMs = 500; // 100ms
+const CAPTURE_INTERVAL_MS = 100; // 100ms
 
 let screenshotQueue: { img: Buffer; timestamp: number }[] = [];
 let captureInterval: ReturnType<typeof setInterval> | null = null;
 let modifierKeys: Set<number> = new Set();
 let scrollSessionActive = false;
-let scrollStartBuffer: { img: Buffer; timestamp: number } | null = null;
-
+let scrollStartScreenshotId: number | null = null;
 
 export function startContinuousCapture() {
   if (captureInterval) return;
   captureInterval = setInterval(async () => {
-    const timestamp = Date.now();
     try {
       const img = await screenshot({ format: 'jpeg' });
-      screenshotQueue.push({ img, timestamp });
+      screenshotQueue.push({ img: img, timestamp: Date.now() });
       if (screenshotQueue.length > MAX_QUEUE_SIZE) {
         const removed = screenshotQueue.shift();
-        if (removed?.img) removed.img.fill(0); // optional manual release
+        if (removed) {
+          removed.img.fill(0);
+          removed.img = null;
+        }
       }
     } catch (err) {
       console.error('🖼️ Screenshot capture error:', err);
     }
-  }, captureIntervalMs);
+  }, CAPTURE_INTERVAL_MS);
+  
+  setInterval(() => {
+    const totalSize = screenshotQueue.reduce((sum, s) => sum + (s.img ? s.img.length : 0), 0);
+    console.log(`[DEBUG] screenshotQueue length: ${screenshotQueue.length}, total buffer size: ${(totalSize/1024/1024).toFixed(2)} MB`);
+  }, 10000);
 }
 
 export function stopContinuousCapture() {
   if (captureInterval) {
     clearInterval(captureInterval);
     captureInterval = null;
-    for (const shot of screenshotQueue) {
-      shot.img.fill(0);
-    }
+    screenshotQueue.forEach((s) => s.img.fill(0));
     screenshotQueue = [];
   }
 }
@@ -45,116 +49,97 @@ function getScreenshotPair(): [before: typeof screenshotQueue[0], after: typeof 
   return [screenshotQueue[screenshotQueue.length - 2], screenshotQueue[screenshotQueue.length - 1]];
 }
 
+async function saveScreenshot(img: Buffer, ts: number) {
+  const id = await insertScreenshot(img, null, new Date(ts));
+  return id;
+}
+
 async function handleEventScreenshots(
   eventType: string,
-  eventDetails: any,
+  event: any,
   win?: BrowserWindow,
-  useSingleFrame: boolean = false
+  singleFrame = false
 ) {
   const pair = getScreenshotPair();
   if (!pair) return;
 
   try {
-    if (useSingleFrame) {
-      const frame = pair[1]; // use the latest screenshot
-      const img = Buffer.from(frame.img);
-      const ts = new Date(frame.timestamp);
-      const screenshotId = await insertScreenshot(img, null, ts);
-      img.fill(0);
-      await recordEvent(eventType, eventDetails, screenshotId, screenshotId, ts);
+    if (singleFrame) {
+      const [_, after] = pair;
+      const id = await saveScreenshot(after.img, after.timestamp);
+      await recordEvent(eventType, event,id, id, new Date(after.timestamp));
     } else {
-      const beforeImg = Buffer.from(pair[0].img);
-      const afterImg = Buffer.from(pair[1].img);
-      const beforeTs = new Date(pair[0].timestamp);
-      const afterTs = new Date(pair[1].timestamp);
-
-      const beforeId = await insertScreenshot(beforeImg, null, beforeTs);
-      const afterId = await insertScreenshot(afterImg, null, afterTs);
-
-      await recordEvent(eventType, eventDetails, beforeId, afterId, beforeTs);
-      beforeImg.fill(0);
-      afterImg.fill(0);
+      const [before, after] = pair;
+      const beforeId = await saveScreenshot(before.img, before.timestamp);
+      const afterId = await saveScreenshot(after.img, after.timestamp);
+      await recordEvent(eventType, event, beforeId, afterId, new Date(before.timestamp));
     }
-
-    if (win?.webContents) win.webContents.send('screenshotSaved');
+    win?.webContents?.send('screenshotSaved');
   } catch (err) {
-    console.error('⚠️ Failed to record screenshot event:', err);
+    console.error(`⚠️ Failed to handle event "${eventType}":`, err);
   }
 }
 
-
-export function handleUserEvent(event: any, win?: BrowserWindow) {
-  const { eventType, keyCode, flags, timestamp, ...eventDetails } = event;
-
-  if (eventType === 'scrollStart') {
-    if (!scrollSessionActive) {
-      scrollSessionActive = true;
-      const pair = getScreenshotPair();
-      if (!pair) return;
-      scrollStartBuffer = {
-        img: Buffer.from(pair[1].img),
-        timestamp: pair[1].timestamp
-      };
-    }
-    return;
+async function handleSpecialKey(event: any, win?: BrowserWindow) {
+  const { keyCode } = event;
+  if (modifierKeys.size > 0) {
+    event.modifierKeys = Array.from(modifierKeys);
+    await handleEventScreenshots('specialCombo', { keyCode, ...event }, win);
+  } else {
+    await handleEventScreenshots('specialKey', { keyCode, ...event }, win);
   }
-  
-  if (eventType === 'scrollEnd') {
-    if (scrollSessionActive && scrollStartBuffer) {
-      scrollSessionActive = false;
-  
-      const pair = getScreenshotPair();
-      if (!pair) return;
-  
-      const afterImg = Buffer.from(pair[1].img);
-      const afterTs = new Date(pair[1].timestamp);
-      const beforeImg = Buffer.from(scrollStartBuffer.img);
-      const beforeTs = new Date(scrollStartBuffer.timestamp);
-      
-      if (scrollStartBuffer?.img) scrollStartBuffer.img.fill(0);
-      scrollStartBuffer = null;
-  
-      insertScreenshot(beforeImg, null, beforeTs).then(beforeId =>
-        insertScreenshot(afterImg, null, afterTs).then(afterId => {
-          beforeImg.fill(0);
-          afterImg.fill(0);
-          return recordEvent('scroll', eventDetails, beforeId, afterId, beforeTs)
-        })
-      ).catch(err => {
-        console.error('⚠️ Failed to record scroll event:', err);
-      });
-      if (win?.webContents) win.webContents.send('screenshotSaved');
-    }
-    return;
-  }
+}
 
-  if (eventType === 'flagsChanged') {
-    const code = Number(keyCode);
-    if (flags && flags.includes('down')) {
-      modifierKeys.add(code);
-    } else {
-      modifierKeys.delete(code);
-    }
-    return;
-  }
+async function handleScrollStart() {
+  if (scrollSessionActive) return;
+  const pair = getScreenshotPair();
+  if (!pair) return;
 
-  if (eventType === 'specialKey') {
-    if (modifierKeys.size > 0) {
-      eventDetails.modifierKeys = Array.from(modifierKeys);
-      handleEventScreenshots('specialCombo', { keyCode, ...eventDetails }, win, false);
-    } else {
-      handleEventScreenshots('specialKey', { keyCode, ...eventDetails }, win, false);
-    }
-    return;
-  }
+  scrollSessionActive = true;
+  scrollStartScreenshotId = await saveScreenshot(pair[1].img, pair[1].timestamp);
+}
+
+async function handleScrollEnd(event: any, win?: BrowserWindow) {
+  if (!scrollSessionActive || !scrollStartScreenshotId) return;
+  const pair = getScreenshotPair();
+  if (!pair) return;
+
+  scrollSessionActive = false;
+  const afterId = await saveScreenshot(pair[1].img, pair[1].timestamp);
+  await recordEvent('scroll', event, scrollStartScreenshotId, afterId, new Date());
+  scrollStartScreenshotId = null;
+  win?.webContents?.send('screenshotSaved');
+}
+
+function updateModifierKeys(code: number, isDown: boolean) {
+  if (isDown) modifierKeys.add(code);
+  else modifierKeys.delete(code);
+}
+
+export async function handleUserEvent(event: any, win?: BrowserWindow) {
+  console.log('📥 event:', event);
+
+  const { eventType, keyCode, flags } = event;
 
   switch (eventType) {
+    case 'scrollStart':
+      return handleScrollStart();
+
+    case 'scrollEnd':
+      return handleScrollEnd(event, win);
+
+    case 'flagsChanged':
+      updateModifierKeys(Number(keyCode), flags?.includes('down'));
+      return;
+
+    case 'specialKey':
+      return handleSpecialKey(event, win);
+
     case 'leftClick':
     case 'rightClick':
-    case 'scroll':
-      handleEventScreenshots(eventType, eventDetails, win, false);
-      break;
+      return handleEventScreenshots(eventType, event, win);
+
     default:
-      console.log('⚠️ Unhandled user event type:', eventType);
+      console.warn('⚠️ unhandled event type:', eventType);
   }
 }

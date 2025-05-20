@@ -1,12 +1,10 @@
 import { parentPort } from 'worker_threads';
-import { FormData, File } from 'undici';
-import { fetch } from 'undici';
 
-const OCR_SERVER_URL = "http://localhost:8080/ocr";
+const OCR_SERVER_URL = "http://127.0.0.1:8080/ocr";
 
 type WorkerMessage = {
   screenshotId: number;
-  imageData: Buffer;
+  imageData: ArrayBuffer;
 };
 
 type OCRResponse = {
@@ -15,13 +13,14 @@ type OCRResponse = {
   error?: string;
 };
 
-parentPort?.on('message', async ({ screenshotId, imageData }: WorkerMessage) => {
+parentPort?.on('message', async ({ screenshotId, imageData }: WorkerMessage) => {  console.log(`🧠 worker got job ${screenshotId}`);
   try {
     const form = new FormData();
     const file = new File([imageData], `screenshot-${screenshotId}.jpg`, {
       type: 'image/jpeg',
     });
-    form.set('image', file);
+    form.append('image', file);
+    
 
     const response = await fetch(OCR_SERVER_URL, {
       method: 'POST',
@@ -29,7 +28,8 @@ parentPort?.on('message', async ({ screenshotId, imageData }: WorkerMessage) => 
     });
 
     const result = await response.json() as OCRResponse;
-
+    Buffer.from(imageData).fill(0);
+    
     if (result.status === "success" && result.redactedImage) {
       parentPort?.postMessage({
         status: "completed",
@@ -44,17 +44,12 @@ parentPort?.on('message', async ({ screenshotId, imageData }: WorkerMessage) => 
       });
     }
   } catch (err: any) {
+    Buffer.from(imageData).fill(0);
     console.error(`❌ OCR worker error for screenshot ${screenshotId}:`, err);
     parentPort?.postMessage({
       status: "failed",
       screenshotId,
       error: err.message,
     });
-  } finally {
-    try {
-      imageData.fill(0);
-    } catch (err) {
-      console.error(`❌ OCR worker error for screenshot ${screenshotId}:`, err);
-    }
   }
 });

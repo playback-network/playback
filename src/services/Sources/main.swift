@@ -15,12 +15,12 @@ struct Redactor {
     
     static let patterns: [String: String] = [
         "email": #"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"#,
-        "phone": #"(\+?\d{1,3}?[-.\s]?(\(?\d{1,4}?\))?[-.\s]?\d{1,4}[-.\s]?\d{1,9})"#,
+        "phone": #"(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{2,4}\)?[-.\s]?)?\d{3,4}[-.\s]?\d{4}\b"#,
         "mongoID": #"^[a-f\d]{24}$"#,
         "passportNumber": #"^(?!^0+$)[a-zA-Z0-9]{3,20}$"#,
         "flightNumber": #"^[A-Z]{2}\d{3,4}$"#,
         "iban": #"^[A-Z]{2}\d{2}[A-Z0-9]{1,30}$"#,
-        "bankAccount": #"^\d{6,20}$"#,
+        "bankAccount": #"\b\d{8,20}\b"#,
         "ipv4": #"^(?:\d{1,3}\.){3}\d{1,3}$"#,
         "ipv6": #"^(?:[A-Fa-f0-9]{1,4}:){7}[A-Fa-f0-9]{1,4}$"#,
         "passwordField": #"(?i)(password|passwd|pwd)\s*[:=]\s*.+$"#  // captures things like "password: hunter2"
@@ -252,4 +252,6 @@ func routes(_ app: Application) throws {
 var env = try Environment.detect()
 let app = try await Application.make(env)
 try routes(app)
+app.http.server.configuration.hostname = "127.0.0.1"
+app.http.server.configuration.port = 8080
 try await app.execute()

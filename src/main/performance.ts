@@ -80,5 +80,13 @@ export function startMonitoring(interval = 2000) {
     ].join(',') + '\n';
 
     stream.write(line);
+    // Print heap usage and other stats to terminal
+    console.log(`[PERF] ${sys.timestamp} | CPU: ${sys.cpu.toFixed(2)}% | Heap Used: ${(sys.heapUsed / 1024 / 1024).toFixed(2)} MB | Heap Total: ${(sys.heapTotal / 1024 / 1024).toFixed(2)} MB | RSS: ${(sys.rss / 1024 / 1024).toFixed(2)} MB`);
+    if (ocrStats) {
+      console.log(`  [OCR]   CPU: ${ocrStats.cpu.toFixed(2)}% | Mem: ${(ocrStats.memory / 1024 / 1024).toFixed(2)} MB (pid: ${ocrStats.pid})`);
+    }
+    if (eventStats) {
+      console.log(`  [EVENT] CPU: ${eventStats.cpu.toFixed(2)}% | Mem: ${(eventStats.memory / 1024 / 1024).toFixed(2)} MB (pid: ${eventStats.pid})`);
+    }
   }, interval);
 }

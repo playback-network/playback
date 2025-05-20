@@ -7,6 +7,7 @@ mac:
     - zip
 files:
   - dist/**/*
+  - workers/**/*
   - node_modules/**/*
   - package.json
   - .env.production

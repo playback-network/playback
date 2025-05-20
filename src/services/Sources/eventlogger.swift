@@ -20,8 +20,9 @@ let modifierMap: [ModifierKey: String] = [
 
 var activeModifiers: Set<String> = []
 var isScrolling = false
-var lastScrollTime = Date().timeIntervalSince1970
-let scrollDebounceInterval: TimeInterval = 1 
+let scrollDebounceInterval: TimeInterval = 0.1
+var scrollEndTimer: Timer?
+
 
 let specialKeys: Set<Int64> = [
     36, 48, 49, 53, 122, 123, 124, 125, 126 // return, esc, tab, space, arrows, etc.
@@ -36,7 +37,6 @@ func emit(_ eventData: [String: Any]) {
 }
 
 func handleScrollEvent(timestamp: TimeInterval) {
-    lastScrollTime = timestamp
 
     if !isScrolling {
         isScrolling = true
@@ -46,15 +46,13 @@ func handleScrollEvent(timestamp: TimeInterval) {
         ])
     }
 
-    DispatchQueue.main.asyncAfter(deadline: .now() + scrollDebounceInterval) {
-        let now = Date().timeIntervalSince1970
-        if now - lastScrollTime >= scrollDebounceInterval {
-            isScrolling = false
-            emit([
-                "eventType": "scrollEnd",
-                "timestamp": now
-            ])
-        }
+    scrollEndTimer?.invalidate()
+    scrollEndTimer = Timer.scheduledTimer(withTimeInterval: scrollDebounceInterval, repeats: false) { _ in
+        isScrolling = false
+        emit([
+            "eventType": "scrollEnd",
+            "timestamp": Date().timeIntervalSince1970
+        ])
     }
 }
 

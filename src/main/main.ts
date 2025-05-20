@@ -1,7 +1,6 @@
-import { systemPreferences, shell, app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, globalShortcut } from 'electron';
+import { systemPreferences, shell, app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, globalShortcut, dialog } from 'electron';
 import path from 'node:path';
 import { initializeDatabase } from '../db/db';
-import { performOCRAndRedact } from '../services/ocr_service'; // Corrected import path
 import { stopBackgroundProcesses, stopUploadLoop, userEventEmitter } from '../services/process_manager';
 import { handleUserEvent } from '../services/capture_engine';
 import { getRedactedScreenshotCount, initializeSession } from '../db/db_utils';
@@ -96,15 +95,11 @@ function createWindow(bounds: Electron.Rectangle) {
 
   win.on('blur', () => {
     if (!win.webContents.isDevToolsOpened()) {
-      win.close();
+      win.hide();
     }
   });
   
-  win.on('close', (event) => {
-    if (mainWindow === win) {
-      mainWindow = null;
-    }
-  });
+  win.setVisibleOnAllWorkspaces(true);
 
   return win;
 }
@@ -167,27 +162,55 @@ function createTray() {
   );
 
   tray.on('click', (_event, bounds) => {
-    if (mainWindow) mainWindow.close();
-    mainWindow = createWindow(bounds);
+    if (!mainWindow) {
+      mainWindow = createWindow(bounds);
+    } else {
+      toggleWindow(bounds);
+    }
   });
 }
 
 async function requestAppPermissionsOnce() {
-  const results: Record<string, boolean> = {};
+  interface PermissionResults {
+    microphone: boolean;
+    screen: boolean;
+    accessibility: boolean;
+  }
 
-  results.microphone =
-    systemPreferences.getMediaAccessStatus('microphone') === 'granted'
-      || await systemPreferences.askForMediaAccess('microphone');
+  const results: PermissionResults = {
+    microphone: false,
+    screen: false,
+    accessibility: false
+  };
 
-  results.screen =
-    systemPreferences.getMediaAccessStatus('screen') === 'granted';
+  // Microphone
+  if (systemPreferences.getMediaAccessStatus('microphone') !== 'granted') {
+    results.microphone = await systemPreferences.askForMediaAccess('microphone');
+  } else {
+    results.microphone = true;
+  }
 
+  // Screen Recording
+  results.screen = systemPreferences.getMediaAccessStatus('screen') === 'granted';
   if (!results.screen) {
+    dialog.showMessageBoxSync({
+      type: 'info',
+      message: 'Screen Recording Permission Needed',
+      detail: 'Please enable screen recording for Playback in System Preferences > Security & Privacy > Screen Recording. You may need to restart the app after enabling.',
+      buttons: ['OK']
+    });
     shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
   }
 
+  // Accessibility
   results.accessibility = systemPreferences.isTrustedAccessibilityClient(false);
   if (!results.accessibility) {
+    dialog.showMessageBoxSync({
+      type: 'info',
+      message: 'Accessibility Permission Needed',
+      detail: 'Please enable Accessibility for Playback in System Preferences > Security & Privacy > Accessibility. You may need to restart the app after enabling.',
+      buttons: ['OK']
+    });
     shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
   }
 
@@ -236,27 +259,16 @@ app.whenReady().then(async () => {
   startMonitoring();
 
   // global shortcut for mac
+  const bounds = tray?.getBounds() ?? { x: 100, y: 100, width: 100, height: 100 };
+  mainWindow = createWindow(bounds);
+  mainWindow.show();
+  mainWindow.focus();
+
   globalShortcut.register('CommandOrControl+P', () => {
-    if (mainWindow) {
-      mainWindow.close();
-      return;
-    }
-    const bounds = tray?.getBounds()
-      ?? { x: 100, y: 100, width: 100, height: 100 };
-    mainWindow = createWindow(bounds);
+    toggleWindow(bounds);
   });
   
   log('session:initialized', { sessionId });
-});
-
-ipcMain.handle('redact-image', async (event, imageData: Buffer) => {
-  try {
-    const redactedImage = await performOCRAndRedact(imageData);
-    return { status: 'success', redactedImage };
-  } catch (error) {
-    console.error('Error during redaction:', error);
-    return { status: 'error', message: error.message };
-  }
 });
 
 ipcMain.handle('db:getRedactedCount', async () => {
@@ -285,6 +297,15 @@ app.on('before-quit', async (event) => {
     app.exit(0);
   }
 });
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled rejection at:', promise, 'reason:', reason);
+});
+
 process.once('exit', shutdown);
 process.on('SIGINT', async () => {
   await shutdown();
