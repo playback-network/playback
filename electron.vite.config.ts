@@ -11,7 +11,7 @@ export default defineConfig({
         input: {
           main: resolve(__dirname, 'src/main/main.ts')
         },
-        external: ['better_sqlite3', 'aws-sdk']
+        external: ['better-sqlite3', 'aws-sdk']
       }
     }
   },
@@ -22,7 +22,7 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'src/preload/index.ts')
         },
-        external: ['better_sqlite3', 'electron', 'aws-sdk']
+        external: ['better-sqlite3', 'electron', 'aws-sdk']
       }
     }
   },
@@ -37,8 +37,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/index.html')
-        },
-        external: ['better_sqlite3', 'aws-sdk']
+        }
       },
       minify: true
     },

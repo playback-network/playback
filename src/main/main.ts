@@ -1,4 +1,4 @@
-import { systemPreferences, shell, app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, globalShortcut, dialog } from 'electron';
+import { systemPreferences, shell, app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, globalShortcut, dialog, screen } from 'electron';
 import path from 'node:path';
 import { initializeDatabase } from '../db/db';
 import { stopBackgroundProcesses, stopUploadLoop, userEventEmitter } from '../services/process_manager';
@@ -53,6 +53,7 @@ function createWindow(bounds: Electron.Rectangle) {
     frame: false,
     resizable: false,
     transparent: true,
+    movable: true,
     show: false,
     skipTaskbar: true,
     alwaysOnTop: true,
@@ -104,30 +105,6 @@ function createWindow(bounds: Electron.Rectangle) {
   return win;
 }
 
-function toggleWindow(bounds) {
-  if (!mainWindow) return;
-
-  if (mainWindow.isVisible()) {
-    mainWindow.hide();
-  } else {
-    const { x, y, width } = bounds;
-    const windowBounds = mainWindow.getBounds();
-
-    const newX = Math.round(x + width / 2 - windowBounds.width / 2);
-    const newY = Math.round(y + 4); // adjust for status bar height
-
-    mainWindow.setBounds({
-      x: newX,
-      y: newY,
-      width: windowBounds.width,
-      height: windowBounds.height
-    });
-
-    mainWindow.show();
-    mainWindow.focus();
-  }
-}
-
 function createTray() {
   const isProd = app.isPackaged;
   const iconPath = isProd
@@ -161,11 +138,11 @@ function createTray() {
   ])
   );
 
-  tray.on('click', (_event, bounds) => {
+  tray.on('click', (_event) => {
     if (!mainWindow) {
-      mainWindow = createWindow(bounds);
+      mainWindow = createWindow(getTrayOrDefaultBounds());
     } else {
-      toggleWindow(bounds);
+      toggleWindow();
     }
   });
 }
@@ -217,6 +194,50 @@ async function requestAppPermissionsOnce() {
   return results;
 }
 
+function getTrayOrDefaultBounds() {
+  if (tray) {
+    const trayBounds = tray.getBounds();
+    // Defensive: Sometimes trayBounds can be { x: 0, y: 0, width: 0, height: 0 }
+    if (trayBounds.width > 0 && trayBounds.height > 0) {
+      return trayBounds;
+    }
+  }
+  // Fallback: Top right of the primary display
+  const { workArea } = screen.getPrimaryDisplay();
+  return {
+    x: workArea.x + workArea.width - 360, // window width
+    y: workArea.y,
+    width: 360,
+    height: 440
+  };
+}
+
+function toggleWindow() {
+  if (!mainWindow) return;
+  if (mainWindow.isVisible()) {
+    mainWindow.hide();
+  } else {
+    const bounds = getTrayOrDefaultBounds();
+    const windowBounds = mainWindow.getBounds();
+    let newX, newY;
+    if (tray && bounds.width < 100 && bounds.height < 100) {
+      newX = Math.round(bounds.x + bounds.width / 2 - windowBounds.width / 2);
+      newY = Math.round(bounds.y + bounds.height + 4);
+    } else {
+      newX = bounds.x;
+      newY = bounds.y + 4;
+    }
+    mainWindow.setBounds({
+      x: newX,
+      y: newY,
+      width: windowBounds.width,
+      height: windowBounds.height
+    });
+    mainWindow.show();
+    mainWindow.focus();
+  }
+}
+
 app.whenReady().then(async () => {
   const perms = await requestAppPermissionsOnce();
 
@@ -259,13 +280,12 @@ app.whenReady().then(async () => {
   startMonitoring();
 
   // global shortcut for mac
-  const bounds = tray?.getBounds() ?? { x: 100, y: 100, width: 100, height: 100 };
-  mainWindow = createWindow(bounds);
+  mainWindow = createWindow(getTrayOrDefaultBounds());
   mainWindow.show();
   mainWindow.focus();
 
   globalShortcut.register('CommandOrControl+P', () => {
-    toggleWindow(bounds);
+    toggleWindow();
   });
   
   log('session:initialized', { sessionId });
@@ -278,7 +298,9 @@ ipcMain.handle('db:getRedactedCount', async () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    if (tray) mainWindow = createWindow(tray.getBounds());
+    if (tray) mainWindow = createWindow(getTrayOrDefaultBounds());
+    mainWindow.show();
+    mainWindow.focus();
   }
 });
 
