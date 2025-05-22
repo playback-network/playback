@@ -80,7 +80,7 @@ module.exports = {
       console.log('🛑 skipping notarization bc ENABLE_NOTARIZE != 1');
       return;
     }
-    const dmgGlob = path.join(__dirname, 'release', 'Playback-0.0.1-arm64.dmg');
+    const dmgGlob = path.join(__dirname, 'release', `Playback-${process.env.VERSION}-arm64.dmg`);
     const dmgPath = glob.sync(dmgGlob);
     console.log(`📡 submitting .dmg to notarization...`);
     execSync(

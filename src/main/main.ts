@@ -42,7 +42,7 @@ function createWindow(bounds: Electron.Rectangle) {
     ? path.join(process.resourcesPath, 'icon.icns')
     : path.join(fileURLToPath(new URL('.', import.meta.url)), '../assets/logo.png');
   console.log('iconPath', iconPath);
-  
+
   const preloadPath = isProd
   ? path.join(process.resourcesPath, 'preload', 'index.js')
   : path.join(__dirname, '../preload/index.js');
@@ -63,17 +63,6 @@ function createWindow(bounds: Electron.Rectangle) {
       nodeIntegration: false,
       preload: preloadPath
     },
-  });
-
-  const { x, y, width } = bounds;
-  const newX = Math.round(x + width / 2 - 180); // 180 = win.width / 2
-  const newY = Math.round(y + 4);
-  
-  win.setBounds({
-    x: newX,
-    y: newY,
-    width: 360,
-    height: 440
   });
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -105,11 +94,11 @@ function createWindow(bounds: Electron.Rectangle) {
   return win;
 }
 
-function createTray() {
+async function createTray() {
   const isProd = app.isPackaged;
   const iconPath = isProd
-    ? path.join(process.resourcesPath, 'assets', 'PbTemplate.png')
-    : path.join(fileURLToPath(new URL('.', import.meta.url)), '../assets/PbTemplate.png');
+    ? path.join(process.resourcesPath, 'assets', 'logo24x24.png')
+    : path.join(fileURLToPath(new URL('.', import.meta.url)), '../assets/logo24x24.png');
     console.log('iconPath', iconPath);
   
   let icon = nativeImage.createFromPath(iconPath);
@@ -118,7 +107,7 @@ function createTray() {
     console.error('[tray] tray icon failed to load');
   }
   icon.setTemplateImage(true); // **CRITICAL** for mac tray icons
-  icon = icon.resize({ width: 18, height: 18 }); // <- this helps with overflow
+  icon = icon.resize({ width: 16, height: 16 }); // <- this helps with overflow
 
   tray = new Tray(icon);
   tray.setToolTip('Playback App');
@@ -138,9 +127,9 @@ function createTray() {
   ])
   );
 
-  tray.on('click', (_event) => {
+  tray.on('click', async (_event) => {
     if (!mainWindow) {
-      mainWindow = createWindow(getTrayOrDefaultBounds());
+      mainWindow = createWindow(await getTrayOrDefaultBounds());
     } else {
       toggleWindow();
     }
@@ -194,30 +183,50 @@ async function requestAppPermissionsOnce() {
   return results;
 }
 
-function getTrayOrDefaultBounds() {
+let hasInitializedTrayBounds = false;
+
+async function getTrayOrDefaultBounds() {
+  if (!hasInitializedTrayBounds) {
+    hasInitializedTrayBounds = true;
+    const { workArea } = screen.getPrimaryDisplay();
+    return {
+      x: workArea.x + workArea.width - 720, // right-aligned
+      y: workArea.y + 24,                    // just under menu bar
+      width: 360,
+      height: 440
+    };
+  }
+
   if (tray) {
-    const trayBounds = tray.getBounds();
-    // Defensive: Sometimes trayBounds can be { x: 0, y: 0, width: 0, height: 0 }
-    if (trayBounds.width > 0 && trayBounds.height > 0) {
-      return trayBounds;
+    for (let i = 0; i < 10; i++) {
+      const trayBounds = tray.getBounds();
+      if (trayBounds.width > 0 && trayBounds.height > 0) {
+        return {
+          x: Math.round(trayBounds.x + trayBounds.width / 2 - 180),
+          y: Math.round(trayBounds.y + trayBounds.height + 4),
+          width: 360,
+          height: 440
+        };
+      }
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
-  // Fallback: Top right of the primary display
+
   const { workArea } = screen.getPrimaryDisplay();
   return {
-    x: workArea.x + workArea.width - 360, // window width
-    y: workArea.y,
+    x: workArea.x + workArea.width - 360,
+    y: workArea.y + 24,
     width: 360,
     height: 440
   };
 }
 
-function toggleWindow() {
+async function toggleWindow() {
   if (!mainWindow) return;
   if (mainWindow.isVisible()) {
     mainWindow.hide();
   } else {
-    const bounds = getTrayOrDefaultBounds();
+    const bounds = await getTrayOrDefaultBounds();
     const windowBounds = mainWindow.getBounds();
     let newX, newY;
     if (tray && bounds.width < 100 && bounds.height < 100) {
@@ -276,14 +285,16 @@ app.whenReady().then(async () => {
   await setActiveSessionId(sessionId);
   
   //boot
-  createTray();
+  await createTray();
   startMonitoring();
 
-  // global shortcut for mac
-  mainWindow = createWindow(getTrayOrDefaultBounds());
+  const bounds = await getTrayOrDefaultBounds();
+  mainWindow = createWindow(bounds);
+  mainWindow.setBounds(bounds);
   mainWindow.show();
   mainWindow.focus();
-
+  
+  // global shortcut for mac
   globalShortcut.register('CommandOrControl+P', () => {
     toggleWindow();
   });
@@ -296,11 +307,11 @@ ipcMain.handle('db:getRedactedCount', async () => {
   return redactedCount;
 });
 
-app.on('activate', () => {
+app.on('activate', async () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    if (tray) mainWindow = createWindow(getTrayOrDefaultBounds());
+    if (tray) mainWindow = createWindow(await getTrayOrDefaultBounds());
     mainWindow.show();
-    mainWindow.focus();
+    mainWindow.focus(); 
   }
 });
 
