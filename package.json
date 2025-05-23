@@ -1,6 +1,6 @@
 {
   "name": "playback",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "main": "dist/main/main.js",
   "scripts": {
     "dev": "cross-env NODE_ENV=development electron-vite dev",

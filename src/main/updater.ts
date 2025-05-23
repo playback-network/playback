@@ -22,7 +22,7 @@ export function checkForUpdates(intervalMs = 2 * 60 * 60 * 1000) {
       // optional: retry after 10 min
       setTimeout(() => {
           log.info('🔁 Retrying update check after error...');
-          autoUpdater.checkForUpdates();
+          autoUpdater.checkForUpdatesAndNotify();
       }, 10 * 60 * 1000);
     });
     autoUpdater.on('download-progress', (progress) => {
@@ -44,10 +44,10 @@ export function checkForUpdates(intervalMs = 2 * 60 * 60 * 1000) {
       }
     });      
     
-    autoUpdater.checkForUpdates();
+    autoUpdater.checkForUpdatesAndNotify();
 
     setInterval(() => {
         log.info('update:loop-tick');
-        autoUpdater.checkForUpdates();
+        autoUpdater.checkForUpdatesAndNotify();
     }, intervalMs);
 }

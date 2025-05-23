@@ -1,4 +1,4 @@
-import { systemPreferences, shell, app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, globalShortcut, dialog, screen } from 'electron';
+import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, globalShortcut, dialog, screen } from 'electron';
 import path from 'node:path';
 import { initializeDatabase } from '../db/db';
 import { stopBackgroundProcesses, stopUploadLoop, userEventEmitter } from '../services/process_manager';
@@ -7,6 +7,7 @@ import { getRedactedScreenshotCount, initializeSession } from '../db/db_utils';
 import { setActiveSessionId } from '../db/sessionStore';
 import dotenv from 'dotenv';
 import './auth';
+import { requestAppPermissionsOnce } from './permissions'
 import { getUserPool } from './auth';
 import { startMonitoring } from './performance';
 import { log } from '../services/logger';
@@ -136,52 +137,6 @@ async function createTray() {
   });
 }
 
-async function requestAppPermissionsOnce() {
-  interface PermissionResults {
-    microphone: boolean;
-    screen: boolean;
-    accessibility: boolean;
-  }
-
-  const results: PermissionResults = {
-    microphone: false,
-    screen: false,
-    accessibility: false
-  };
-
-  // Microphone
-  if (systemPreferences.getMediaAccessStatus('microphone') !== 'granted') {
-    results.microphone = await systemPreferences.askForMediaAccess('microphone');
-  } else {
-    results.microphone = true;
-  }
-
-  // Screen Recording
-  results.screen = systemPreferences.getMediaAccessStatus('screen') === 'granted';
-  if (!results.screen) {
-    dialog.showMessageBoxSync({
-      type: 'info',
-      message: 'Screen Recording Permission Needed',
-      detail: 'Please enable screen recording for Playback in System Preferences > Security & Privacy > Screen Recording. You may need to restart the app after enabling.',
-      buttons: ['OK']
-    });
-    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
-  }
-
-  // Accessibility
-  results.accessibility = systemPreferences.isTrustedAccessibilityClient(false);
-  if (!results.accessibility) {
-    dialog.showMessageBoxSync({
-      type: 'info',
-      message: 'Accessibility Permission Needed',
-      detail: 'Please enable Accessibility for Playback in System Preferences > Security & Privacy > Accessibility. You may need to restart the app after enabling.',
-      buttons: ['OK']
-    });
-    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
-  }
-
-  return results;
-}
 
 let hasInitializedTrayBounds = false;
 
@@ -249,7 +204,8 @@ async function toggleWindow() {
 
 app.whenReady().then(async () => {
   const perms = await requestAppPermissionsOnce();
-
+  app.dock.hide()
+  
   //system settings
   if (app.isPackaged && process.platform === 'darwin') {
     const exePath = app.getPath('exe');
@@ -259,11 +215,7 @@ app.whenReady().then(async () => {
       openAsHidden: true,
       path: exePath,
     });
-  }
-
-  if (process.platform === 'darwin') {
-    app.dock.hide();
-  }  
+  } 
 
   // env
   const envPath = app.isPackaged
@@ -290,7 +242,6 @@ app.whenReady().then(async () => {
 
   const bounds = await getTrayOrDefaultBounds();
   mainWindow = createWindow(bounds);
-  mainWindow.setBounds(bounds);
   mainWindow.show();
   mainWindow.focus();
   

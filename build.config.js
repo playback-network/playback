@@ -80,11 +80,15 @@ module.exports = {
       console.log('🛑 skipping notarization bc ENABLE_NOTARIZE != 1');
       return;
     }
-    const dmgGlob = path.join(__dirname, 'release', `Playback-${process.env.VERSION}-arm64.dmg`);
-    const dmgPath = glob.sync(dmgGlob);
+    const dmgPath = path.join(process.cwd(), 'release', `Playback-${process.env.VERSION}-arm64.dmg`);
+
+    if (!fs.existsSync(dmgPath)) {
+      console.error(`❌ .dmg file not found at ${dmgPath}`);
+      return;
+    }
     console.log(`📡 submitting .dmg to notarization...`);
     execSync(
-      `xcrun notarytool submit "${dmgPath}" --apple-id "${process.env.APPLE_ID}" --password "${process.env.APPLE_APP_SPECIFIC_PASSWORD}" --team-id "${process.env.APPLE_TEAM_ID}" --wait --force`,
+      `xcrun notarytool submit "${dmgPath}" --keychain-profile "playback-creds" --wait`,
       { stdio: 'inherit' }
     );
 
